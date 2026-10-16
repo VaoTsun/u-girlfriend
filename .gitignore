@@ -1,0 +1,15 @@
+# Секреты — только локально, в git не попадают
+**/config.json
+!**/config.example.json
+service.json
+
+# Состояние и логи рантайма
+**/state.json
+**/*.log
+scheduler/logs/
+prices/history.csv
+prices/reports/
+
+# Python
+__pycache__/
+*.pyc

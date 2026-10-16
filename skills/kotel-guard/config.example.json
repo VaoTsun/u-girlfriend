@@ -1,0 +1,11 @@
+{
+  "token": "ВАШ_ТОКЕН_БОТА",
+  "chat_id": "5002583838",
+  "server": "192.168.88.171:90",
+  "device": "Отопление",
+  "column": "cels",
+  "threshold_c": 20,
+  "window_minutes": 180,
+  "rearm_ratio": 0.5,
+  "check_interval_minutes": 30
+}
