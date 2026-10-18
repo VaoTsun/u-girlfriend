@@ -5,16 +5,21 @@
 асистент — он живёт отдельно в репозитории [sluxa4](https://github.com/VaoTsun/sluxa4)
 («Слухач»: Vosk, wake-word «подружка», диктовка, озвучка).
 
-Репозиторий используется как **конфигурационная директория OpenCode**
-(`OPENCODE_CONFIG_DIR`), поэтому одна и та же «Подружка» работает на всех
-машинах (Windows/Linux) — клон репозитория + одна переменная окружения.
+Репозиторий подключается к OpenCode как **источник памяти и навыков** через
+запись в глобальном конфиге (`~/.config/opencode/opencode.json` указывает на
+этот клон), поэтому одна и та же «Подружка» работает на всех машинах —
+клон репозитория + одна запись в конфиге (см. «Установка»).
 
 ## Состав
 
 | Каталог/файл | Назначение |
 | --- | --- |
-| `opencode.json` | глобальный конфиг OpenCode |
-| `skills/` | навыки: `heating-check`, `heating-telegram`, `kotel-guard`, `nasushchnoe`, `plan-day`, `weather` |
+| `opencode.json` | конфиг OpenCode для сессий, открытых внутри репозитория |
+| `skills/` | навыки: `heating-check`, `heating-telegram`, `journal`, `kotel-guard`, `nasushchnoe`, `plan-day`, `solcast`, `weather` |
+| `AGENTS.md` | памятка агента (глобальная): карта репозиториев, правила, указатели на память |
+| `journal/` | дневники решений по проектам (`journal/voltage.md`) |
+| `knowledge/` | знания, сгенерированные из источников (`knowledge/voltage-db.md`) |
+| `tools/` | инструменты памяти (`tools/dbdoc.js` — генератор структура БД из PostgreSQL) |
 | `plan.txt` | план дня (правится голосом: «подружка, навык план …») |
 | `nasushchnoe.txt` | указатель на «насущное» — задачи хранятся в базе (PostgreSQL, `dev.nasushchnoe`) |
 | `cowgirl-calendar/` | сезонный календарь работ + утренние напоминания в Telegram |
@@ -28,18 +33,21 @@
 git clone https://github.com/VaoTsun/girlfriend.git
 ```
 
-### Windows
-```powershell
-setx OPENCODE_CONFIG_DIR "D:\_d\girlfriend"
+Подключить память и навыки — одна запись в глобальном конфиге OpenCode
+(`~/.config/opencode/opencode.json`), пути указывают на клон:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "instructions": ["<клон>/AGENTS.md"],
+  "skills": ["<клон>/skills"]
+}
 ```
 
-### Linux
-```bash
-echo 'export OPENCODE_CONFIG_DIR=~/girlfriend' >> ~/.bashrc
-source ~/.bashrc
-```
+На этой машине `<клон>` = `D:/_d/girlfriend`. OpenCode подхватывает такие
+правки на лету; если не подхватил — `opencode service restart`.
 
-После смены переменной перезапусти OpenCode (`opencode service restart`).
+(Старый способ `OPENCODE_CONFIG_DIR` — из V1, в V2 не документирован.)
 
 ## Секреты
 
