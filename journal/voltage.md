@@ -6,6 +6,37 @@
 
 ---
 
+## 2026-10-18 — npm audit: 15 уязвимостей → 4 (модерейт, мёртвый request)
+
+**Контекст:** Dependabot показывал 20 уязвимостей в u-barn (2 critical, 8 high).
+Просьба: «можешь исправить?». Код библиотек не менялся — только дерево зависимостей.
+
+**Сделано:**
+- `npm audit fix` (без --force) — убрал body-parser, brace-expansion, proxy-addr (15→12).
+- `overrides` в `package.json` (без `npm:`-алиасов — прод-сервер держит npm 9.2,
+  алиасы в overrides падают с «Invalid comparator»; npm поднять нельзя — нет sudo):
+  - `qs ^6.16.1`, `uuid ^11.1.1` — глобально до неуязвимых версий;
+  - `request.form-data ^2.5.6`, `request.tough-cookie ^4.1.4` — критичный
+    form-data и цепочка request убиты;
+  - `chokidar ^4.0.3` — nodemon 3 тянет chokidar 3 → braces (high, **апстрим-фикса
+    нет вообще**, advisory affects all versions). В chokidar 4 braces не используется.
+    Подмена проверена в песочнице: nodemon реально перезапускает процесс при
+    изменении файла. После deploy проверен и прод-restart (touch web.server.js).
+
+**Грабли / остаток (accepted risk):**
+- Осталось 4 moderate — это всё один корень: deprecated-пакет `request@2.88.2`
+  сам по себе (SSRF-адвизор GHSA-p8p7-x288-28g6, чинить нечем — мёртвый пакет).
+  Это фантом: peer-зависимость request-promise-core, в рантайме `node-telegram-bot-api`
+  грузит только `@cypress/request` (проверено по коду: stealthy-require → @cypress/request).
+  Полностью убрать из дерева можно только алиас-оверрайдом `request: npm:@cypress/request`
+  (требует npm ≥10) или миграцией на node-telegram-bot-api v2 (from-scratch redesign,
+  переделка crons.js/ns.bot.js/tg.js). Пока принято.
+- Проверка после обновления: `getMe` через новый стек → `BOT OK: ZavisiskeDevBot`,
+  `/tt.html` → 200, `/solcast_load` → отвечает (429 — дневной лимит free-тарифа Solcast,
+  не поломка).
+- Prod: `git pull` + `npm install` (node_modules не в git — без install обновление
+  зависимостей не применяется!), touch web.server.js, проверка200.
+
 ## 2026-10-18 — память агента переехала в girlfriend, voltage чист от LLM
 
 **Контекст:** память агента (AGENTS.md, дневник JOURNAL.md, структура БД
