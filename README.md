@@ -2,7 +2,7 @@
 
 Общая «начинка» ассистента **«Подружка»**: навыки (skills), конфиг OpenCode,
 план дня, обработчики команд (алерты, цены, расписание). Это **не** голосовой
-асистент — он живёт отдельно в репозитории [sluxa4](https://github.com/VaoTsun/sluxa4)
+асистент — он живёт отдельно в репозитории [u-sluxa4](https://github.com/VaoTsun/u-sluxa4)
 («Слухач»: Vosk, wake-word «подружка», диктовка, озвучка).
 
 Репозиторий подключается к OpenCode как **источник памяти и навыков** через
@@ -30,7 +30,7 @@
 ## Установка на новой машине
 
 ```bash
-git clone https://github.com/VaoTsun/girlfriend.git
+git clone https://github.com/VaoTsun/u-girlfriend.git
 ```
 
 Подключить память и навыки — одна запись в глобальном конфиге OpenCode
@@ -44,7 +44,7 @@ git clone https://github.com/VaoTsun/girlfriend.git
 }
 ```
 
-На этой машине `<клон>` = `D:/_d/girlfriend`. OpenCode подхватывает такие
+На этой машине `<клон>` = `D:/_d/u-girlfriend`. OpenCode подхватывает такие
 правки на лету; если не подхватил — `opencode service restart`.
 
 (Старый способ `OPENCODE_CONFIG_DIR` — из V1, в V2 не документирован.)

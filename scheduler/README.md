@@ -6,7 +6,7 @@
 ## Папки
 
 ```
-d:\_d\girlfriend\scheduler\
+d:\_d\u-girlfriend\scheduler\
   run.ps1          - запускает одну задачу и пишет лог
   schedule.ps1     - создаёт / удаляет / показывает задачи в Планировщике
   tasks\           - сами задачи: <имя>.ps1 | <имя>.py | <имя>.cmd
@@ -21,7 +21,7 @@ d:\_d\girlfriend\scheduler\
 ### Ежедневно в заданное время
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File d:\_d\girlfriend\scheduler\schedule.ps1 `
+powershell -NoProfile -ExecutionPolicy Bypass -File d:\_d\u-girlfriend\scheduler\schedule.ps1 `
   -Action add -Name prices -Time 09:00
 ```
 
@@ -32,7 +32,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File d:\_d\girlfriend\scheduler\s
 ### Каждые N минут (для тестов)
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File d:\_d\girlfriend\scheduler\schedule.ps1 `
+powershell -NoProfile -ExecutionPolicy Bypass -File d:\_d\u-girlfriend\scheduler\schedule.ps1 `
   -Action add -Name test -Minutes 5
 ```
 
@@ -62,20 +62,20 @@ schedule.ps1 -Action remove -Name prices
 - `skelbiu.lt` — доска объявлений (б/у). Отчёт дополнительно содержит раздел
   «ВСЁ ДО 2 500 €» — порог задаётся полем `max_price` в `targets.json`.
 
-Скрипт: `d:\_d\girlfriend\prices\check_prices.py`,
-список сайтов и товаров: `d:\_d\girlfriend\prices\targets.json`.
+Скрипт: `d:\_d\u-girlfriend\prices\check_prices.py`,
+список сайтов и товаров: `d:\_d\u-girlfriend\prices\targets.json`.
 
 Результаты:
 
-- `d:\_d\girlfriend\prices\reports\latest.txt` — последний отчёт;
-- `d:\_d\girlfriend\prices\reports\report_*.txt` — отчёты по датам;
-- `d:\_d\girlfriend\prices\history.csv` — история цен;
+- `d:\_d\u-girlfriend\prices\reports\latest.txt` — последний отчёт;
+- `d:\_d\u-girlfriend\prices\reports\report_*.txt` — отчёты по датам;
+- `d:\_d\u-girlfriend\prices\history.csv` — история цен;
 - `logs\prices.log` — лог запусков.
 
 Изменить время запуска (повторный `add` перезаписывает задачу):
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File d:\_d\girlfriend\scheduler\schedule.ps1 `
+powershell -NoProfile -ExecutionPolicy Bypass -File d:\_d\u-girlfriend\scheduler\schedule.ps1 `
   -Action add -Name prices -Time 08:30
 ```
 

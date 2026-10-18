@@ -8,17 +8,17 @@
 
 | Папка | Что это |
 | --- | --- |
-| `voltage/` | веб-сервер мониторинга: Node.js, `web.server.js`, `crons.js`, `ns.bot.js`; dev `http://localhost:90`, прод `http://192.168.88.171:90`; PostgreSQL `192.168.88.171:5432` (база `d`, схемы `ar`/`dev`/`public`) |
-| `girlfriend/` | эта память: навыки (skills/), журналы решений (journal/), знания (knowledge/), инструменты (tools/) |
-| `sluxach/` | голосовой ассистент «Слухач» (Vosk, wake-word «подружка», диктовка, озвучка) |
+| `u-barn/` | бывший `voltage`: веб-сервер мониторинга: Node.js, `web.server.js`, `crons.js`, `ns.bot.js`; dev `http://localhost:90`, прод `http://192.168.88.171:90`; PostgreSQL `192.168.88.171:5432` (база `d`, схемы `ar`/`dev`/`public`) |
+| `u-girlfriend/` | эта память (бывший `girlfriend`): навыки (skills/), журналы решений (journal/), знания (knowledge/), инструменты (tools/) |
+| `u-sluxa4/` | бывший `sluxach`: голосовой ассистент «Слухач» (Vosk, wake-word «подружка», диктовка, озвучка) |
 | `bravenew/` | прочее |
 
 ## Где что лежит (память между сессиями)
 
-- `girlfriend/journal/voltage.md` — дневник решений по voltage (новые записи сверху)
-- `girlfriend/knowledge/voltage-db.md` — структура БД (генерится `node tools/dbdoc.js`, руками не править)
-- `girlfriend/skills/journal/` — скилл «завершение сессии» (фраза «зафиксируй итоги»)
-- Навыки голосового ассистента — `girlfriend/skills/` (подключены глобальным конфигом)
+- `u-girlfriend/journal/voltage.md` — дневник решений по u-barn (новые записи сверху)
+- `u-girlfriend/knowledge/voltage-db.md` — структура БД (генерится `node tools/dbdoc.js`, руками не править)
+- `u-girlfriend/skills/journal/` — скилл «завершение сессии» (фраза «зафиксируй итоги»)
+- Навыки голосового ассистента — `u-girlfriend/skills/` (подключены глобальным конфигом)
 
 ## Правила (voltage)
 

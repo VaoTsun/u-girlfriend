@@ -21,7 +21,7 @@ import urllib.parse
 import urllib.request
 
 BASE = os.path.dirname(os.path.abspath(__file__))
-VALS_JSON = r"D:\_d\voltage\vals.json"
+VALS_JSON = r"D:\_d\u-barn\vals.json"
 API = "http://192.168.88.171:90/getdots"
 STATE_FILE = os.path.join(BASE, "state.json")
 LOG_FILE = os.path.join(BASE, "alerts.log")

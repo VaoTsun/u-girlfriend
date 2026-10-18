@@ -10,13 +10,13 @@
  *   node tools/dbdoc.js          (перегенерить knowledge/voltage-db.md)
  *   node tools/dbdoc.js --check  (только показать, что изменилось)
  *
- * Путь к voltage: по умолчанию ../voltage (папка рядом с girlfriend),
+ * Путь к u-barn: по умолчанию ../u-barn (папка рядом с u-girlfriend),
  * переопределяется переменной окружения VOLTAGE_DIR.
  */
 const fs = require('fs');
 const path = require('path');
 
-const VOLTAGE = process.env.VOLTAGE_DIR || path.join(__dirname, '..', '..', 'voltage');
+const VOLTAGE = process.env.VOLTAGE_DIR || path.join(__dirname, '..', '..', 'u-barn');
 const OUT = path.join(__dirname, '..', 'knowledge', 'voltage-db.md');
 
 // dotenv и pg лежат в node_modules voltage — подключаем их напрямую,

@@ -81,7 +81,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "<sk
 
 Создание/пересоздание вручную:
 ```powershell
-$action  = New-ScheduledTaskAction -Execute "powershell.exe" -Argument '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "D:\_d\girlfriend\skills\kotel-guard\scripts\kotel-guard.ps1"'
+$action  = New-ScheduledTaskAction -Execute "powershell.exe" -Argument '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "D:\_d\u-girlfriend\skills\kotel-guard\scripts\kotel-guard.ps1"'
 $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 30) -RepetitionDuration ([TimeSpan]::MaxValue)
 Register-ScheduledTask -TaskName "kotel-guard" -Action $action -Trigger $trigger -Force
 ```
