@@ -38,13 +38,17 @@ u-girlfriend склонирован на прод: `/home/vao/u-girlfriend` (д�
 | `0 9 * *` | `prices/check_prices.py` — цены роботов-газонокосилок |
 | `0 23/6` | `u-barn/zte.5goff.night.py` — ночной off/on ZTE (venv) |
 
+**Не cron:** напоминания («напомни ... через ...») — внутри `ns.bot.js` на
+проде (процесс `crons.js`, таймер 30 с): входящие сообщения принимает только
+бот с polling. Скилл `skills/reminder/`.
+
 `config.json` kotel-guard и state-файлы — только на проде (в .gitignore).
 Windows-задачи (OpenCode-alerts/prices, kotel-guard) удалены; осталась только
 демка `OpenCode-demo` (scheduler/). Логи задач — рядом со скриптами + `cron.log`.
 
 ## Правила (voltage)
 
-- Деплой: `git push` + `ssh ubarn171 "cd /home/vao/u-barn && git pull --ff-only"` (nodemon рестартит `web.server.js`, который сам поднимает `crons.js`). Изменения только в документации - не деплоить.
+- Деплой: `git push` + `ssh ubarn171 "cd /home/vao/u-barn && git pull --ff-only"` + `ssh ubarn171 "touch /home/vao/u-barn/web.server.js"` (nodemon рестартит `web.server.js`, который сам поднимает `crons.js`). **Симлинк `/home/vao/voltage → u-barn` не удалять** — nodemon следит по старым путям, без него рестарты умрут (19.10.2026). Изменения только в документации - не деплоить.
 - Секреты только в `.env` (не в git); `vals.json`/`vals.js` не трогать.
 - Проверять результат чистыми запросами, не «сбросом кэша».
 - Кракозябры в PowerShell — кодировка консоли; сами файлы в UTF-8.
