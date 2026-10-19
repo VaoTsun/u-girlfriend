@@ -22,7 +22,7 @@
 
 ## Правила (voltage)
 
-- Деплой: `git push` + `ssh voltage171 "cd /home/vao/voltage && git pull --ff-only"` (nodemon рестартит `web.server.js`, который сам поднимает `crons.js`). Изменения только в документации — не деплоить.
+- Деплой: `git push` + `ssh ubarn171 "cd /home/vao/u-barn && git pull --ff-only"` (nodemon рестартит `web.server.js`, который сам поднимает `crons.js`). Изменения только в документации - не деплоить.
 - Секреты только в `.env` (не в git); `vals.json`/`vals.js` не трогать.
 - Проверять результат чистыми запросами, не «сбросом кэша».
 - Кракозябры в PowerShell — кодировка консоли; сами файлы в UTF-8.

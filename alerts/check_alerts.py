@@ -21,7 +21,9 @@ import urllib.parse
 import urllib.request
 
 BASE = os.path.dirname(os.path.abspath(__file__))
-VALS_JSON = r"D:\_d\u-barn\vals.json"
+# vals.json лежит в соседнем репозитории u-barn (дев: D:\_d\u-barn, прод: /home/vao/u-barn)
+U_BARN = os.path.abspath(os.path.join(BASE, "..", "..", "u-barn"))
+VALS_JSON = os.path.join(U_BARN, "vals.json")
 API = "http://192.168.88.171:90/getdots"
 STATE_FILE = os.path.join(BASE, "state.json")
 LOG_FILE = os.path.join(BASE, "alerts.log")
@@ -75,12 +77,35 @@ def load_vals():
         return json.load(f)
 
 
+def load_env_secrets():
+    """Секреты живут в .env рядом с vals.json (vals.json нарочно с пустыми строками).
+    Тот же принцип, что в vals.js: сначала .env, потом значение из vals.json."""
+    env = {}
+    env_path = os.path.join(U_BARN, ".env")
+    if os.path.exists(env_path):
+        try:
+            with open(env_path, encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith("#") or "=" not in line:
+                        continue
+                    k, v = line.split("=", 1)
+                    env[k.strip()] = v.strip()
+        except Exception:
+            pass
+    return env
+
+
 def get_chat():
     """id чата для алертов из vals.json (PROD.channel)."""
     return int(load_vals()["teleGa"]["PROD"]["channel"])
 
 
 def get_token():
+    env = load_env_secrets()
+    token = env.get("TG_PROD_TOKEN") or env.get("TG_TOKEN")
+    if token:
+        return token
     return load_vals()["teleGa"]["PROD"]["token"]
 
 
