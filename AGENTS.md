@@ -20,6 +20,23 @@
 - `u-girlfriend/skills/journal/` — скилл «завершение сессии» (фраза «зафиксируй итоги»)
 - Навыки голосового ассистента — `u-girlfriend/skills/` (подключены глобальным конфигом)
 
+## Фоновые задачи (с 19.10.2026 — на проде)
+
+Windows = дев-среда, прод (Linux) = всё фоновое. u-girlfriend склонирован
+на прод: `/home/vao/u-girlfriend` (деплой `git push` + `ssh ubarn171 "cd /home/vao/u-girlfriend && git pull --ff-only"`).
+В `crontab` vao на проде:
+
+| Интервал | Задача |
+| --- | --- |
+| `*/5` | `alerts/check_alerts.py` — отопление < 40 °C, qoltec < 52.5 В → Telegram |
+| `*/30` | `skills/kotel-guard/scripts/kotel-guard.py` — котёл разожжён → Telegram |
+| `0 9 * *` | `prices/check_prices.py` — цены роботов-газонокосилок |
+| `0 23/6` | `u-barn/zte.5goff.night.py` — ночной off/on ZTE (venv) |
+
+`config.json` kotel-guard и state-файлы — только на проде (в .gitignore).
+Windows-задачи (OpenCode-alerts/prices, kotel-guard) удалены; осталась только
+демка `OpenCode-demo` (scheduler/). Логи задач — рядом со скриптами + `cron.log`.
+
 ## Правила (voltage)
 
 - Деплой: `git push` + `ssh ubarn171 "cd /home/vao/u-barn && git pull --ff-only"` (nodemon рестартит `web.server.js`, который сам поднимает `crons.js`). Изменения только в документации - не деплоить.

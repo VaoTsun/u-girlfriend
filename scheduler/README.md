@@ -51,6 +51,12 @@ schedule.ps1 -Action remove -Name prices
 
 ## Задача «prices» — цены на роботы-газонокосилки
 
+> **С 19.10.2026 выполняется на проде** (cron, 09:00 Europe/Vilnius):
+> `0 9 * * * /usr/bin/python3 /home/vao/u-girlfriend/prices/check_prices.py >> .../prices/cron.log 2>&1`
+> Windows-задача `OpenCode-prices` удалена. Деплой: git push + git pull на проде.
+> Отчёты и `history.csv` теперь пишутся **на проде** в `/home/vao/u-girlfriend/prices/`.
+> Ниже — как это работало локально (оставлено для истории/отладки).
+
 Ежедневно в **09:00** проверяет цены на роботы-газонокосилки (в т.ч. GUST 550
 со снежным отвалом). Магазины:
 

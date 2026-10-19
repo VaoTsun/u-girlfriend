@@ -5,11 +5,14 @@ description: Автоматическая охрана отопления — ф
 
 # Kotel Guard — охрана котла
 
-Фоновый наблюдатель: сам каждые 30 минут (через **Планировщик задач Windows**)
-проверяет температуру теплоносителя и при резком подъёме шлёт уведомление
-в Telegram — мол, разжёг котёл, проверь заслонку и насос.
+Фоновый наблюдатель: сам каждые 30 минут проверяет температуру теплоносителя
+и при резком подъёме шлёт уведомление в Telegram — мол, разжёг котёл, проверь
+заслонку и насос.
 
-Не требует OpenCode — работает как обычная задача Планировщика.
+**С 19.10.2026 работает на проде (192.168.88.171) в cron** — Python-версия
+`scripts/kotel-guard.py`. Windows-задача удалена; `kotel-guard.ps1` оставлен
+как legacy (Windows/dev). Деплой: `git push` в u-girlfriend + `git pull`
+на проде (`ssh ubarn171 "cd /home/vao/u-girlfriend && git pull --ff-only"`).
 
 ## Логика
 
@@ -35,10 +38,12 @@ description: Автоматическая охрана отопления — ф
 
 | файл | назначение |
 |------|-----------|
-| `scripts/kotel-guard.ps1` | сам скрипт (UTF-8 с BOM!) |
-| `config.json` | токен/чат, порог, окно, интервал |
+| `scripts/kotel-guard.py` | основной скрипт (Python 3, запускается в cron на проде) |
+| `scripts/kotel-guard.ps1` | legacy-версия для Windows (тот же API и логика) |
+| `config.json` | токен/чат, порог, окно, интервал (в .gitignore, на проде создаётся вручную) |
 | `state.json` | состояние «вооружено/уведомлено» (создаётся сам) |
 | `kotel-guard.log` | журнал проверок |
+| `cron.log` | stdout задачи из cron |
 
 ### config.json
 ```json
@@ -55,15 +60,18 @@ description: Автоматическая охрана отопления — ф
 
 ## Ручной запуск и отладка
 
+На проде (SSH `ubarn171`):
+```bash
+cd /home/vao/u-girlfriend
+python3 skills/kotel-guard/scripts/kotel-guard.py             # обычная проверка
+python3 skills/kotel-guard/scripts/kotel-guard.py --dry-run   # решение без отправки
+python3 skills/kotel-guard/scripts/kotel-guard.py --force     # тестовое уведомление
+```
+
+Локально (Windows): та же команда через `python`; ps1 — эквивалент:
 ```powershell
-# обычная проверка (то же, что делает задача Планировщика)
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "scripts/kotel-guard.ps1"
-
-# показать решение, ничего не отправлять и не менять
+python "scripts/kotel-guard.py" --dry-run
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "scripts/kotel-guard.ps1" -DryRun
-
-# принудительно послать тестовое уведомление в Telegram
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "scripts/kotel-guard.ps1" -Force
 ```
 
 Коды выхода: `0` — окно/решение без действия или уведомление ушло;
@@ -71,45 +79,40 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "scripts/kotel-guard.ps1
 `5` — ошибка отправки в Telegram (в этом случае состояние **не**
 сбрасывается, уведомление уйдёт при следующей проверке).
 
-## Задача Планировщика
+## Задача (прод, cron)
 
-Имя задачи: **`kotel-guard`**. Действие:
+На проде в `crontab` пользователя `vao` (добавлена 19.10.2026):
 ```
-powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "<skill>\scripts\kotel-guard.ps1"
+*/30 * * * * /usr/bin/python3 /home/vao/u-girlfriend/skills/kotel-guard/scripts/kotel-guard.py >> /home/vao/u-girlfriend/skills/kotel-guard/cron.log 2>&1
 ```
-Триггер: раз в 30 минут, без ограничения длительности.
 
-Создание/пересоздание вручную:
+Windows-задача Планировщика `kotel-guard` удалена 19.10.2026 (перенос на прод).
+Если нужно вернуть локально:
 ```powershell
 $action  = New-ScheduledTaskAction -Execute "powershell.exe" -Argument '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "D:\_d\u-girlfriend\skills\kotel-guard\scripts\kotel-guard.ps1"'
 $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 30) -RepetitionDuration ([TimeSpan]::MaxValue)
 Register-ScheduledTask -TaskName "kotel-guard" -Action $action -Trigger $trigger -Force
 ```
 
-Полезные команды:
-```powershell
-Get-ScheduledTask -TaskName "kotel-guard"          # есть ли задача
-Start-ScheduledTask  -TaskName "kotel-guard"       # запустить сейчас (проверка)
-Stop-ScheduledTask   -TaskName "kotel-guard"       # остановить
-Unregister-ScheduledTask -TaskName "kotel-guard" -Confirm:$false   # удалить
-Get-Content "<skill>\kotel-guard.log" -Tail 20     # журнал
-```
-
 ## Как отвечать пользователю
 
-- **Статус**: прочитай хвост `kotel-guard.log` и `state.json` — скажи, стоит
-  ли задача, состояние (вооружено/уведомлено), последняя проверка и подъём.
-- **«Проверь, что шлётся»** → `-DryRun`.
-- **«Отправь тест»** → `-Force`.
-- Изменение порога/окна — правь `config.json` (порог, окно, rearm_ratio);
-  интервал — пересоздай триггер задачи.
+- **Статус**: прочитай хвост `kotel-guard.log` и `state.json` **на проде**
+  (`ssh ubarn171 "tail -5 /home/vao/u-girlfriend/skills/kotel-guard/kotel-guard.log"`)
+  — скажи, стоит ли задача, состояние (вооружено/уведомлено), последняя проверка и подъём.
+- **«Проверь, что шлётся»** → `--dry-run`.
+- **«Отправь тест»** → `--force`.
+- Изменение порога/окна — правь `config.json` (порог, окно, rearm_ratio) **на проде**
+  (файл не в git); интервал — править строку в crontab на проде.
 
 ## Заметки по поддержке
 
-- `kotel-guard.ps1` — **UTF-8 с BOM** (иначе PowerShell 5.1 ломает кириллицу).
-- `config.json` содержит токен бота — не коммитить в публичные репозитории.
+- `config.json` содержит токен бота — не коммитить (в .gitignore); на проде
+  создаётся вручную, токен = `TG_TOKEN` из `/home/vao/u-barn/.env`.
 - Токен/чат общие с навыком `heating-telegram` — при смене бота обнови оба.
 - `state.json` сбрасывай вручную (удали файл), если хочешь принудительно
   перевести охрану в состояние «вооружено».
 - Данные берутся из JSON-эндпоинтов графика (`/getdevs`, `/getdots`),
   а не чтением картинки.
+- `kotel-guard.ps1` (legacy, Windows): **UTF-8 с BOM** (иначе PowerShell 5.1
+  ломает кириллицу). Python-версия BOM не требует; state.json пишется без BOM
+  (чтение устойчиво к обоим).

@@ -6,7 +6,42 @@
 
 ---
 
-## 2026-10-19 — Переименование на проде: voltage → u-barn, sluxa4 → u-sluxa4
+## 2026-10-19 — Фоновые задачи переехали с Windows на прод (cron)
+
+**Контекст:** пользователь: «хочу, чтобы все задачи выполнялись на проде,
+Windows = дев-среда». На Windows крутились: OpenCode-alerts (python, 5 мин),
+kotel-guard (PowerShell, 30 мин), OpenCode-prices (python, ежедневно 09:00)
+и демка OpenCode-demo.
+
+**Сделано:**
+- `u-girlfriend` склонирован на прод (`/home/vao/u-girlfriend`) — деплой
+  через git push/pull, как у u-barn.
+- `kotel-guard.py` — Python-порт ps1 (pwsh на проде нет): тот же API
+  (/getdevs, /getdots), логика, коды выхода, state-machine «вооружено/
+  уведомлено». ps1 оставлен как legacy.
+- `check_alerts.py` — кроссплатформенные пути (vals.json = соседний u-barn)
+  + фолбэк токена из `.env` (на проде vals.json с пустыми секретами —
+  тот же принцип vals.js).
+- `check_prices.py` — перенесён как есть (requests на проде есть).
+- Cron на проде: `*/5` alerts, `*/30` kotel-guard, `0 9 * *` prices
+  (плюс существовавший ZTE 23:00/06:00). Таймзона прод Europe/Vilnius —
+  совпадает с Windows-триггерами.
+- config.json kotel-guard создан на проде (токен = TG_TOKEN из u-barn/.env);
+  state-файлы (alerts, kotel, prices+history.csv) перенесены scp — без
+  ложных алертов, история цен продолжилась.
+- Windows-задачи удалены (OpenCode-alerts/prices, kotel-guard); demo оставлена.
+- Все три задачи проверены на проде руками + первое cron-срабатывание alerts
+  в логе (13:10).
+
+**Грабли:**
+- PowerShell+ssh ломает кириллицу в командах (config.json создавался с `?????`)
+  — решили scp готового файла. Unicode-эскейпы в python-команде тоже вариант.
+- state.json от ps1 — с BOM; python-порт читает через `utf-8-sig`.
+- `--dry-run` первый раз «не был распознан» — гонка с git pull, со второго
+  раза ок.
+
+---
+
 
 **Контекст:** Репозитории на GitHub и локальные папки уже переименованы
 (u-barn / u-girlfriend / u-sluxa4), а на проде (192.168.88.171) папки оставались
