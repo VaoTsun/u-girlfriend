@@ -1,0 +1,12 @@
+{
+  "chat_id": "5002583838",
+  "src": 11,
+  "device_name": "Колодец",
+  "stale_minutes": 15,
+  "off_alert_hours": 6.5,
+  "on_alert_minutes": 30,
+  "env_file": "/home/vao/u-barn/.env",
+  "db_host": "192.168.88.171",
+  "db_user": "app",
+  "db_name": "d"
+}
