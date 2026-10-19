@@ -22,8 +22,12 @@
 
 ## Фоновые задачи (с 19.10.2026 — на проде)
 
-Windows = дев-среда, прод (Linux) = всё фоновое. u-girlfriend склонирован
-на прод: `/home/vao/u-girlfriend` (деплой `git push` + `ssh ubarn171 "cd /home/vao/u-girlfriend && git pull --ff-only"`).
+**Правило: любой новый алерт/проверка/фоновая задача → сразу на прод
+(Linux, cron, Python), НЕ на Windows.** Windows = дев-среда, прод = всё
+фоновое. Порядок: пишем Python-скрипт в u-girlfriend, git push, git pull
+на проде, строка в crontab (SSH `ubarn171`). Секреты — из `/home/vao/u-barn/.env`.
+u-girlfriend склонирован на прод: `/home/vao/u-girlfriend` (деплой
+`git push` + `ssh ubarn171 "cd /home/vao/u-girlfriend && git pull --ff-only"`).
 В `crontab` vao на проде:
 
 | Интервал | Задача |
