@@ -34,6 +34,7 @@ u-girlfriend склонирован на прод: `/home/vao/u-girlfriend` (д�
 | --- | --- |
 | `*/5` | `alerts/check_alerts.py` — отопление < 40 °C, qoltec < 52.5 В → Telegram |
 | `*/30` | `skills/kotel-guard/scripts/kotel-guard.py` — котёл разожжён → Telegram |
+| `*/30` | `skills/well-guard/scripts/well-guard.py` — колодец: не включался ≥ 6.5 ч / работает ≥ 30 мин / мёртв датчик → Telegram |
 | `0 9 * *` | `prices/check_prices.py` — цены роботов-газонокосилок |
 | `0 23/6` | `u-barn/zte.5goff.night.py` — ночной off/on ZTE (venv) |
 
