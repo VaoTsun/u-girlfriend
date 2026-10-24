@@ -123,7 +123,12 @@ $out += "Насущное: в работе " + $open.Count + ", сделано "
 $n = 0
 foreach ($it in $open) {
   $n++
-  $out += ($n.ToString() + ". " + $it.title)
+  $wait = ""
+  if ($it.blocked_by -gt 0) {
+    $ids = @($it.deps) | Where-Object { $_ } | ForEach-Object { "#" + $_ }
+    $wait = "  (ждёт: " + ($ids -join ", ") + ")"
+  }
+  $out += ($n.ToString() + ". " + $it.title + $wait)
 }
 foreach ($it in $finished) {
   $out += ($it.title + " - сделано")
