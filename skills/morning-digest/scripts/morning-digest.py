@@ -21,8 +21,11 @@ SQL_ALLOWLIST в web.server.js): не нужен psql и одинаково ра
     недели; время (минуты/часы) игнорируется, сводка и так утренняя;
   • «Октябрь, ноябрь.» / «весной» / «осенью» — текущий месяц/сезон;
   • «Ноябрь 5» — конкретный день (5 ноября);
-  • всё остальное («С началом отоплением.») — не угадываем, показываем
-    отдельной строкой «не понял расписание», чтобы поправить в органайзере.
+  • «С началом отопления.» — проверяем ночную температуру теплоносителя
+    («Отопление», gr=16, cels) за 7 дней: отопление считается начавшимся, если
+    не меньше N ночей подряд/за окно, когда ночью было > 50 °C >= 3 точек за ночь.
+  • всё остальное — не угадываем, показываем отдельной строкой
+    «не понял расписание», чтобы поправить в органайзере.
 """
 import argparse
 import html
@@ -33,7 +36,7 @@ import sys
 import time
 import urllib.parse
 import urllib.request
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 HERE = os.path.dirname(os.path.abspath(__file__))        # .../skills/morning-digest/scripts
 SKILL_DIR = os.path.dirname(HERE)                        # .../skills/morning-digest
@@ -46,7 +49,7 @@ DEFAULTS = {
     "chat_id": 5002583838,          # личка владельца; группа — -5453305680
     "top_n": 5,
     "show_unknown": True,
-    "timeout": 20,
+    "timeout": 30,
     # секреты (токен бота, пароль БД) — в u-barn/.env, здесь их нет
     "env_file": "",
     # отопительный сезон: ночная температура теплоносителя («Отопление», gr=16)
@@ -54,8 +57,9 @@ DEFAULTS = {
     "heating_col": "cels",
     "heating_threshold_c": 50,
     "heating_min_points": 3,
+    "heating_need_nights": 3,
+    "heating_window_days": 7,
     "heating_night_hours": [22, 23, 0, 1, 2, 3, 4, 5, 6],
-    "heating_back_minutes": 720,
 }
 
 WEEKDAYS = ["пн", "вт", "ср", "чт", "пт", "сб", "вс"]
@@ -121,8 +125,7 @@ def fetch_url(url, timeout):
 
 
 def fetch_any(api, path_query, timeout):
-    """GET к u-barn с фолбэком на локальный dev и 3 попытками (сайт может
-    перезапускаться ровно в 7:30)."""
+    """GET к u-barn с фолбэком на локальный dev и 3 попытками."""
     bases = [api]
     if "192.168.88.171" in api:
         bases.append("http://127.0.0.1:90")
@@ -140,7 +143,6 @@ def fetch_any(api, path_query, timeout):
 
 
 def fetch_rows(api, sql_name, timeout):
-    """Строки разрешённого SQL через /sql (те же файлы, что у страниц)."""
     data = fetch_any(api, "/sql?" + urllib.parse.urlencode({"sql": sql_name}), timeout)
     if not isinstance(data, list):
         raise RuntimeError("неожиданный ответ /sql: %r" % (data,))
@@ -196,7 +198,6 @@ def cron_due(expr, d):
     dom_ok = d.day in dom
     mon_ok = d.month in mon
     dow_ok = (d.isoweekday() % 7) in dow
-    # как в Vixie cron: если ограничены и день месяца, и день недели — хватает одного
     if f[2] not in ("*", "?") and f[4] not in ("*", "?"):
         return mon_ok and (dom_ok or dow_ok)
     return mon_ok and dom_ok and dow_ok
@@ -220,23 +221,19 @@ def text_due(text, d):
     t = str(text or "").lower().replace("ё", "е")
     if not t.strip():
         return None
-
     months = {num for stem, num in MONTHS if re.search(r"\b" + stem, t)}
     seasons = set()
     for stem, mset in SEASONS:
         if re.search(r"\b" + stem, t):
             seasons |= mset
-
     if months:
         if d.month not in months:
             return False
         days = [int(x) for x in re.findall(r"(?<!\d)(\d{1,2})(?!\d)", t)
                 if 1 <= int(x) <= 31]
         return (d.day in days) if days else True
-
     if seasons:
         return d.month in seasons
-
     return None
 
 
@@ -244,21 +241,18 @@ HEATING_RE = re.compile(r"отоплен")
 
 
 def is_heating_schedule(expr):
-    """«С началом отоплением.» и подобное — расписание задаёт отопительный сезон."""
+    """«С началом отопления.» — решаем по ночной температуре теплоносителя."""
     return bool(HEATING_RE.search(str(expr or "").lower().replace("ё", "е")))
 
 
 def night_heating(cfg):
-    """Начался ли отопительный сезон: ночная температура теплоносителя > порога.
+    """Начался ли отопительный сезон по ночному теплоносителю («Отопление», gr=16).
 
-    «Отопление» — gr=16, col=cels (см. heating-check: это ТЕПЛОНОСИТЕЛЬ,
-    не воздух в котельной). Ночь — часы из heating_night_hours (22:00–06:59);
-    точки берём за heating_back_minutes до сводки (по умолчанию 12 ч).
-    Возвращает state: True/False/None (нет данных), max °C и число точек.
+    Учитываем не одну ночь, а heating_need_nights за heating_window_days,
+    когда ночных точек > heating_threshold_c >= heating_min_points.
     """
     gr = as_int(cfg.get("heating_gr"), 16)
     col = str(cfg.get("heating_col") or "cels")
-    back = max(60, as_int(cfg.get("heating_back_minutes"), 720))
     try:
         threshold = float(cfg.get("heating_threshold_c") or 50)
     except (TypeError, ValueError):
@@ -266,45 +260,66 @@ def night_heating(cfg):
     hours = cfg.get("heating_night_hours") or [22, 23, 0, 1, 2, 3, 4, 5, 6]
     night = {as_int(h, -1) for h in hours}
     min_points = max(1, as_int(cfg.get("heating_min_points"), 3))
+    need_nights = max(1, as_int(cfg.get("heating_need_nights"), 3))
+    window_days = max(need_nights, as_int(cfg.get("heating_window_days"), 7))
 
-    info = {"state": None, "max": None, "samples": 0, "hot": 0,
-            "threshold": threshold, "reason": ""}
-    qs = urllib.parse.urlencode({"gr": gr, "col": col, "back": back, "gsCoef": 120})
+    info = {"state": None, "max": None, "hot_nights": 0, "nights": 0,
+            "threshold": threshold, "need_nights": need_nights,
+            "window_days": window_days, "reason": ""}
+
+    qs = urllib.parse.urlencode({"gr": gr, "col": col, "back": window_days * 24 * 60,
+                                 "gsCoef": 240})
     try:
-        rows = fetch_any(cfg["api"], "/getdots?" + qs, cfg.get("timeout", 20))
+        rows = fetch_any(cfg["api"], "/getdots?" + qs, cfg.get("timeout", 30))
     except Exception as e:
         info["reason"] = "нет данных отопления (%s)" % e
         log("Отопление: %s" % info["reason"])
         return info
 
-    vals = []
-    hot = []
+    by_day = {}
     for r in rows if isinstance(rows, list) else []:
-        # ts приходит с «Z», но это часы устройства (см. heating-check) —
-        # берём час как есть, без пересчёта пояса
-        m = re.search(r"T(\d{2}):", str(r.get("ts") or ""))
-        if not m or int(m.group(1)) not in night:
+        ts = str(r.get("ts") or "")
+        m = re.search(r"(\d{4}-\d{2}-\d{2})T(\d{2}):", ts)
+        if not m:
+            continue
+        day_key, h = m.group(1), int(m.group(2))
+        if h not in night:
             continue
         try:
             v = float(r.get("val"))
         except (TypeError, ValueError):
             continue
-        vals.append(v)
+        slot = by_day.setdefault(day_key, {"hot": 0, "max": -10 ** 18})
         if v > threshold:
-            hot.append(v)
+            slot["hot"] += 1
+        if v > slot["max"]:
+            slot["max"] = v
 
-    if not vals:
-        info["reason"] = "ночью не было точек отопления"
-        log("Отопление: %s" % info["reason"])
+    hot_nights = []
+    for day_key in sorted(by_day.keys()):
+        slot = by_day[day_key]
+        info["nights"] += 1
+        if slot["hot"] >= min_points and slot["max"] > threshold:
+            hot_nights.append((day_key, slot["max"]))
+
+    info["hot_nights"] = len(hot_nights)
+    if hot_nights:
+        info["max"] = max(x[1] for x in hot_nights)
+
+    if info["hot_nights"] < need_nights:
+        if info["nights"] == 0:
+            info["reason"] = "ночных замеров теплоносителя за %d дн. нет" % window_days
+        else:
+            info["reason"] = ("отопительный сезон не подтверждён: тёплых ночей %d из %d за %d дн. "
+                              "(нужно >= %d, >%g °C — >= %d точек)"
+                              % (info["hot_nights"], info["nights"], window_days,
+                                 need_nights, threshold, min_points))
+        log("Отопление ночами: %s" % info["reason"])
         return info
 
-    info["samples"] = len(vals)
-    info["max"] = max(vals)
-    info["hot"] = len(hot)
-    info["state"] = (info["hot"] >= min_points and info["max"] > threshold)
-    log("Отопление ночью: макс %.1f °C (%d точек, >%g: %d, нужно >=%d) -> сезон %s"
-        % (info["max"], len(vals), threshold, info["hot"], min_points,
-           "начался" if info["state"] else "не начался"))
+    info["state"] = True
+    log("Отопление ночами: %d тёплых ночей из %d за %d дн., макс %.1f °C -> сезон начался"
+        % (info["hot_nights"], info["nights"], window_days, info["max"]))
     return info
 
 
@@ -355,7 +370,7 @@ def build_message(nas_rows, org_rows, d, cfg, heating=None):
     free = [r for r in nas_rows if not r.get("done")]
     free.sort(key=lambda r: (
         -as_int(r.get("prio")),
-        1 if as_int(r.get("blocked_by")) > 0 else 0,   # сначала то, что можно брать
+        1 if as_int(r.get("blocked_by")) > 0 else 0,
         0 if r.get("location") else 1,
         str(r.get("location") or ""),
         as_int(r.get("i")),
@@ -411,8 +426,8 @@ def build_message(nas_rows, org_rows, d, cfg, heating=None):
     for r, h in due:
         line = "• <b>%s</b> <i>(%s)</i>" % (
             esc(short(r.get("title"), 140)), esc(short(r.get("cron"), 60)))
-        if h and h.get("max") is not None:      # сезон подтверждён ночной температурой
-            line += " — ночью до %s °C" % fmt_c(h["max"])
+        if h and h.get("max") is not None:
+            line += " — макс %s °C" % fmt_c(h["max"])
         lines.append(line)
         if r.get("notes"):
             lines.append("   ↳ " + esc(short(r.get("notes"), 170)))
