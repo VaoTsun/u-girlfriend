@@ -49,6 +49,13 @@ DEFAULTS = {
     "timeout": 20,
     # секреты (токен бота, пароль БД) — в u-barn/.env, здесь их нет
     "env_file": "",
+    # отопительный сезон: ночная температура теплоносителя («Отопление», gr=16)
+    "heating_gr": 16,
+    "heating_col": "cels",
+    "heating_threshold_c": 50,
+    "heating_min_points": 3,
+    "heating_night_hours": [22, 23, 0, 1, 2, 3, 4, 5, 6],
+    "heating_back_minutes": 720,
 }
 
 WEEKDAYS = ["пн", "вт", "ср", "чт", "пт", "сб", "вс"]
@@ -107,31 +114,37 @@ def load_env(path):
 
 # ---------------------------------------------------------------- данные u-barn
 
-def fetch_rows(api, sql_name, timeout):
-    url = "%s/sql?%s" % (api.rstrip("/"), urllib.parse.urlencode({"sql": sql_name}))
+def fetch_url(url, timeout):
     req = urllib.request.Request(url, headers={"User-Agent": "morning-digest/1.0"})
     with urllib.request.urlopen(req, timeout=timeout) as r:
-        data = json.load(r)
-    if not isinstance(data, list):
-        raise RuntimeError("неожиданный ответ /sql: %r" % (data,))
-    return data
+        return json.load(r)
 
 
-def fetch_with_fallback(api, sql_name, timeout):
+def fetch_any(api, path_query, timeout):
+    """GET к u-barn с фолбэком на локальный dev и 3 попытками (сайт может
+    перезапускаться ровно в 7:30)."""
     bases = [api]
-    if "192.168.88.171" in api:            # прод недоступен — пробуем локальный dev
+    if "192.168.88.171" in api:
         bases.append("http://127.0.0.1:90")
     last = None
     for base in bases:
-        for attempt in range(1, 4):        # сайт может перезапускаться ровно в 7:30
+        for attempt in range(1, 4):
             try:
-                return fetch_rows(base, sql_name, timeout)
+                return fetch_url(base.rstrip("/") + path_query, timeout)
             except Exception as e:
                 last = e
-                log("Не получил %s с %s (попытка %d): %s" % (sql_name, base, attempt, e))
+                log("Не получил %s с %s (попытка %d): %s" % (path_query, base, attempt, e))
                 if attempt < 3:
                     time.sleep(10)
     raise last
+
+
+def fetch_rows(api, sql_name, timeout):
+    """Строки разрешённого SQL через /sql (те же файлы, что у страниц)."""
+    data = fetch_any(api, "/sql?" + urllib.parse.urlencode({"sql": sql_name}), timeout)
+    if not isinstance(data, list):
+        raise RuntimeError("неожиданный ответ /sql: %r" % (data,))
+    return data
 
 
 # ---------------------------------------------------------------- разбор cron
@@ -227,7 +240,77 @@ def text_due(text, d):
     return None
 
 
-def schedule_due(expr, d):
+HEATING_RE = re.compile(r"отоплен")
+
+
+def is_heating_schedule(expr):
+    """«С началом отоплением.» и подобное — расписание задаёт отопительный сезон."""
+    return bool(HEATING_RE.search(str(expr or "").lower().replace("ё", "е")))
+
+
+def night_heating(cfg):
+    """Начался ли отопительный сезон: ночная температура теплоносителя > порога.
+
+    «Отопление» — gr=16, col=cels (см. heating-check: это ТЕПЛОНОСИТЕЛЬ,
+    не воздух в котельной). Ночь — часы из heating_night_hours (22:00–06:59);
+    точки берём за heating_back_minutes до сводки (по умолчанию 12 ч).
+    Возвращает state: True/False/None (нет данных), max °C и число точек.
+    """
+    gr = as_int(cfg.get("heating_gr"), 16)
+    col = str(cfg.get("heating_col") or "cels")
+    back = max(60, as_int(cfg.get("heating_back_minutes"), 720))
+    try:
+        threshold = float(cfg.get("heating_threshold_c") or 50)
+    except (TypeError, ValueError):
+        threshold = 50.0
+    hours = cfg.get("heating_night_hours") or [22, 23, 0, 1, 2, 3, 4, 5, 6]
+    night = {as_int(h, -1) for h in hours}
+    min_points = max(1, as_int(cfg.get("heating_min_points"), 3))
+
+    info = {"state": None, "max": None, "samples": 0, "hot": 0,
+            "threshold": threshold, "reason": ""}
+    qs = urllib.parse.urlencode({"gr": gr, "col": col, "back": back, "gsCoef": 120})
+    try:
+        rows = fetch_any(cfg["api"], "/getdots?" + qs, cfg.get("timeout", 20))
+    except Exception as e:
+        info["reason"] = "нет данных отопления (%s)" % e
+        log("Отопление: %s" % info["reason"])
+        return info
+
+    vals = []
+    hot = []
+    for r in rows if isinstance(rows, list) else []:
+        # ts приходит с «Z», но это часы устройства (см. heating-check) —
+        # берём час как есть, без пересчёта пояса
+        m = re.search(r"T(\d{2}):", str(r.get("ts") or ""))
+        if not m or int(m.group(1)) not in night:
+            continue
+        try:
+            v = float(r.get("val"))
+        except (TypeError, ValueError):
+            continue
+        vals.append(v)
+        if v > threshold:
+            hot.append(v)
+
+    if not vals:
+        info["reason"] = "ночью не было точек отопления"
+        log("Отопление: %s" % info["reason"])
+        return info
+
+    info["samples"] = len(vals)
+    info["max"] = max(vals)
+    info["hot"] = len(hot)
+    info["state"] = (info["hot"] >= min_points and info["max"] > threshold)
+    log("Отопление ночью: макс %.1f °C (%d точек, >%g: %d, нужно >=%d) -> сезон %s"
+        % (info["max"], len(vals), threshold, info["hot"], min_points,
+           "начался" if info["state"] else "не начался"))
+    return info
+
+
+def schedule_due(expr, d, heating=None):
+    if is_heating_schedule(expr):
+        return (heating or {}).get("state")
     due = cron_due(expr, d)
     if due is not None:
         return due
@@ -258,7 +341,14 @@ def int_list(v):
     return [as_int(x) for x in v]
 
 
-def build_message(nas_rows, org_rows, d, cfg):
+def fmt_c(v):
+    try:
+        return ("%.1f" % float(v)).rstrip("0").rstrip(".")
+    except (TypeError, ValueError):
+        return "?"
+
+
+def build_message(nas_rows, org_rows, d, cfg, heating=None):
     top_n = max(1, as_int(cfg.get("top_n"), 5))
     done_map = {as_int(r.get("i")): bool(r.get("done")) for r in nas_rows}
 
@@ -272,13 +362,25 @@ def build_message(nas_rows, org_rows, d, cfg):
     ))
     top = free[:top_n]
 
-    due, unknown = [], []
+    need_heating = any(not r.get("complete_this_period") and is_heating_schedule(r.get("cron"))
+                       for r in org_rows)
+    if heating is None and need_heating:
+        heating = night_heating(cfg)
+
+    due, pending, unknown = [], [], []
     for r in org_rows:
         if r.get("complete_this_period"):
             continue
+        if is_heating_schedule(r.get("cron")):
+            state = (heating or {}).get("state")
+            if state is True:
+                due.append((r, heating))
+            elif state is None:
+                pending.append((r, heating))
+            continue
         state = schedule_due(r.get("cron"), d)
         if state is True:
-            due.append(r)
+            due.append((r, None))
         elif state is None:
             unknown.append(r)
 
@@ -306,11 +408,21 @@ def build_message(nas_rows, org_rows, d, cfg):
     lines.append("📅 <b>Календарь — подошло сегодня</b>")
     if not due:
         lines.append("— по расписанию на сегодня ничего")
-    for r in due:
-        lines.append("• <b>%s</b> <i>(%s)</i>" %
-                     (esc(short(r.get("title"), 140)), esc(short(r.get("cron"), 60))))
+    for r, h in due:
+        line = "• <b>%s</b> <i>(%s)</i>" % (
+            esc(short(r.get("title"), 140)), esc(short(r.get("cron"), 60)))
+        if h and h.get("max") is not None:      # сезон подтверждён ночной температурой
+            line += " — ночью до %s °C" % fmt_c(h["max"])
+        lines.append(line)
         if r.get("notes"):
             lines.append("   ↳ " + esc(short(r.get("notes"), 170)))
+
+    if pending:
+        lines.append("")
+        lines.append("⚠️ <i>Не смог проверить отопительный сезон:</i>")
+        for r, h in pending:
+            reason = (h or {}).get("reason") or "нет данных отопления"
+            lines.append("• %s — %s" % (esc(short(r.get("title"), 100)), esc(reason)))
 
     if unknown and cfg.get("show_unknown", True):
         lines.append("")
@@ -378,13 +490,17 @@ def main():
         return 2
 
     try:
-        nas_rows = fetch_with_fallback(cfg["api"], SQL_NAS, cfg.get("timeout", 20))
-        org_rows = fetch_with_fallback(cfg["api"], SQL_ORG, cfg.get("timeout", 20))
+        nas_rows = fetch_rows(cfg["api"], SQL_NAS, cfg.get("timeout", 20))
+        org_rows = fetch_rows(cfg["api"], SQL_ORG, cfg.get("timeout", 20))
     except Exception as e:
         log("Ошибка: данные не получены: %s" % e)
         return 3
 
-    text = build_message(nas_rows, org_rows, day, cfg)
+    need_heating = any(not r.get("complete_this_period") and is_heating_schedule(r.get("cron"))
+                       for r in org_rows)
+    heating = night_heating(cfg) if need_heating else None
+
+    text = build_message(nas_rows, org_rows, day, cfg, heating=heating)
 
     if args.dry_run:
         print("DRYRUN: сообщение НЕ отправлено.")
@@ -400,7 +516,7 @@ def main():
     free_n = len([r for r in nas_rows if not r.get("done")])
     due_n = len([r for r in org_rows
                  if not r.get("complete_this_period")
-                 and schedule_due(r.get("cron"), day) is True])
+                 and schedule_due(r.get("cron"), day, heating) is True])
     log("Отправлено: насущное %d из %d, календарь %d задач(и)."
         % (min(as_int(cfg.get("top_n"), 5), free_n), free_n, due_n))
     return 0
