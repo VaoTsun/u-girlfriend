@@ -394,10 +394,12 @@ def main():
         log("Ошибка отправки в Telegram: %s" % e)
         return 5
 
-    due_count = text.count("\n• ")
+    free_n = len([r for r in nas_rows if not r.get("done")])
+    due_n = len([r for r in org_rows
+                 if not r.get("complete_this_period")
+                 and schedule_due(r.get("cron"), day) is True])
     log("Отправлено: насущное %d из %d, календарь %d задач(и)."
-        % (min(as_int(cfg.get("top_n"), 5), len([r for r in nas_rows if not r.get("done")])),
-           len([r for r in nas_rows if not r.get("done")]), due_count))
+        % (min(as_int(cfg.get("top_n"), 5), free_n), free_n, due_n))
     return 0
 
 
