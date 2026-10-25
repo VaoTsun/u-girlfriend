@@ -123,11 +123,14 @@ def fetch_with_fallback(api, sql_name, timeout):
         bases.append("http://127.0.0.1:90")
     last = None
     for base in bases:
-        try:
-            return fetch_rows(base, sql_name, timeout)
-        except Exception as e:
-            last = e
-            log("Не получил %s с %s: %s" % (sql_name, base, e))
+        for attempt in range(1, 4):        # сайт может перезапускаться ровно в 7:30
+            try:
+                return fetch_rows(base, sql_name, timeout)
+            except Exception as e:
+                last = e
+                log("Не получил %s с %s (попытка %d): %s" % (sql_name, base, attempt, e))
+                if attempt < 3:
+                    time.sleep(10)
     raise last
 
 
