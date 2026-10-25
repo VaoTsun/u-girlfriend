@@ -1,0 +1,7 @@
+{
+  "chat_id": 5002583838,
+  "api": "http://192.168.88.171:90",
+  "top_n": 5,
+  "show_unknown": true,
+  "env_file": "/home/vao/u-barn/.env"
+}

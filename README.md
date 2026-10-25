@@ -15,7 +15,7 @@
 | Каталог/файл | Назначение |
 | --- | --- |
 | `opencode.json` | конфиг OpenCode для сессий, открытых внутри репозитория |
-| `skills/` | навыки: `heating-check`, `heating-telegram`, `journal`, `kotel-guard`, `nasushchnoe`, `plan-day`, `solcast`, `weather` |
+| `skills/` | навыки: `heating-check`, `heating-telegram`, `journal`, `kotel-guard`, `morning-digest`, `nasushchnoe`, `plan-day`, `solcast`, `weather` |
 | `AGENTS.md` | памятка агента (глобальная): карта репозиториев, правила, указатели на память |
 | `journal/` | дневники решений по проектам (`journal/voltage.md`) |
 | `knowledge/` | знания, сгенерированные из источников (`knowledge/voltage-db.md`) |
@@ -70,6 +70,9 @@ Copy-Item skills\kotel-guard\config.example.json      skills\kotel-guard\config.
   теплоносителя и шлёт в Telegram «🔥 Котёл разожжён — проверь заслонку и насос».
   Задача в Планировщике: `kotel-guard`.
 - **plan-day** — план дня: добавить/отметить/показать.
+- **morning-digest** — утренняя сводка в 7:30 в Telegram: верхние приоритеты
+  «насущного» (`nas.html`) + задания из органайзера (`org.html`), у которых
+  подошёл срок.
 - **nasushchnoe** — «насущное»: задачи в базе (PostgreSQL, таблица `dev.nasushchnoe`),
   а не в текстовом файле. Веб-страница — `http://192.168.88.171:90/nas.html`.
 - **weather** — погода.
