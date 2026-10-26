@@ -1,0 +1,6 @@
+{
+  "outdoor_src": null,
+  "city": "Visaginas",
+  "owm_url": "https://api.openweathermap.org/data/2.5/forecast?q=Visaginas&appid=ab071a5ec4952f607a076c66ecdba01d&units=metric",
+  "tz": "Europe/Vilnius"
+}

@@ -4,6 +4,9 @@
 пишем **зачем** и какие грабли нашли. Заполняется скиллом `journal` по итогам
 работы (фраза «зафиксируй итоги»).
 
+## 2026-10-25 — Погода в БД: forecast+actual (src=23 Банановая)
+Зачем: скилл weather-forecast. weather_forecast.py (07:00) кладёт прогноз OWM в dev.weather.forecast, weather_actual.py (07:30) считает факт за вчера по ar.vals src=23 (Банановая) в dev.weather.actual. jsonb_set не трогает actual. Креды из /home/vao/u-barn/.env. dev.weather создана на проде. Временный сенсор для определения заморозков/заноса лавров.
+
 ---
 
 ## 2026-10-25 — Утренняя сводка 7:30: насущное + органайзер в Telegram
