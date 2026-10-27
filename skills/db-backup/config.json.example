@@ -1,0 +1,12 @@
+{
+  "env_path_prod": "/home/vao/u-barn/.env",
+  "pg_bin_dir": "",
+  "backup_dir": "/home/vao/backups/db",
+  "schemas": ["r", "dev"],
+  "full_schemas": ["dev"],
+  "partial_tables": [
+    {"schema": "r", "table": "vals", "days": 7, "time_col": "time"}
+  ],
+  "keep_days": 14,
+  "compress": true
+}

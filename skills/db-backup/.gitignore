@@ -1,0 +1,6 @@
+config.json
+*.log
+*.dump
+*.sql
+*.sql.gz
+*.tmp
