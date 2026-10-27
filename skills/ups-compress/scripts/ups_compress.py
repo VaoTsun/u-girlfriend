@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 
 def load_env_file(path):
     env = {}
-    if not path:
+    if not path or not os.path.exists(path):
         return env
     try:
         with open(path, 'r', encoding='utf-8') as f:
@@ -36,14 +36,13 @@ def get_db_env(skill_dir):
         except Exception as e:
             print(f"[WARN] cannot read config.json: {e}", file=sys.stderr)
     env_path_prod = cfg.get('env_path_prod') or '/home/vao/u-barn/.env'
-    # try local .env first, then prod path
     env = {}
-    for p in [os.path.join(skill_dir, '.env'), os.path.join(os.path.dirname(skill_dir), '..', '.env'), env_path_prod]:
+    for p in [os.path.join(skill_dir, '.env'), env_path_prod]:
         if p and os.path.exists(p):
             env.update(load_env_file(p))
             break
-    # also inherit from os.environ
-    for k in ['PGHOST','PGPORT','PGUSER','PGPASSWORD','PGDATABASE']:
+    # inherit from environment
+    for k in ['PGHOST','PGPORT','PGUSER','PGPASSWORD','PGDATABASE','DB_PASSWORD','DB_USER','DB_NAME','DB_HOST']:
         if k in os.environ and k not in env:
             env[k] = os.environ[k]
     return env, cfg
@@ -52,9 +51,27 @@ def psql(env, sql, psql_bin='psql', dry=False):
     if dry:
         print('[DRY] SQL:\n' + sql)
         return ''
-    cmd = [psql_bin, '-h', env.get('PGHOST','127.0.0.1'), '-p', str(env.get('PGPORT','5432')), '-U', env.get('PGUSER',''), '-d', env.get('PGDATABASE',''), '-v', 'ON_ERROR_STOP=1', '-t', '-A']
-    proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env={**os.environ, **{k:v for k,v in env.items() if k.startswith('PG')}})
-    out, err = proc.communicate(sql.encode('utf-8'))
+    db = env.get('PGDATABASE') or env.get('DB_NAME') or 'd'
+    user = env.get('PGUSER') or env.get('DB_USER') or os.environ.get('USER') or 'app'
+    password = env.get('PGPASSWORD') or env.get('DB_PASSWORD') or ''
+
+    # Try to connect via Unix socket first (like on prod without pgpass)
+    cmd = [psql_bin, '-d', db, '-U', user, '-v', 'ON_ERROR_STOP=1', '-t', '-A']
+    # If PGHOST explicitly set and not empty, use TCP; else prefer socket
+    pghost = env.get('PGHOST') or env.get('DB_HOST') or ''
+    if pghost and pghost not in ('', 'localhost', '127.0.0.1'):
+        cmd.extend(['-h', pghost])
+        if env.get('PGPORT') or env.get('DB_PORT'):
+            cmd.extend(['-p', str(env.get('PGPORT') or env.get('DB_PORT'))])
+    elif pghost in ('127.0.0.1','localhost'):
+        # prefer socket on same host
+        pass
+
+    run_env = os.environ.copy()
+    if password:
+        run_env['PGPASSWORD'] = password
+    proc = subprocess.Popen(cmd + ['-c', sql], stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=run_env)
+    out, err = proc.communicate()
     if proc.returncode != 0:
         raise RuntimeError(f'psql failed: {err.decode("utf-8", errors="ignore")}')
     return out.decode('utf-8', errors='ignore')
@@ -94,7 +111,11 @@ def main():
 
     cutoff = (datetime.now() - timedelta(days=keep_days)).strftime('%Y-%m-%d %H:%M:%S')
     print(f"[INFO] mode={'DRY-RUN' if dry else 'APPLY'} keep_days={keep_days} cutoff<{cutoff}")
-    print(f"[INFO] db={env.get('PGDATABASE')}@{env.get('PGHOST')}:{env.get('PGPORT')} user={env.get('PGUSER')}")
+    dbn = env.get('PGDATABASE') or env.get('DB_NAME')
+    pgu = env.get('PGUSER') or env.get('DB_USER')
+    pgh = env.get('PGHOST') or env.get('DB_HOST') or '(socket)'
+    pgp = env.get('PGPORT') or env.get('DB_PORT') or ''
+    print(f"[INFO] db={dbn}@{pgh}{(':'+pgp) if pgp else ''} user={pgu}")
     print(f"[INFO] tables: {schema}.{src} -> {schema}.{ev}, {schema}.{hr}")
     print(f"[INFO] window_statuses={win} normal_statuses={norm}")
 
