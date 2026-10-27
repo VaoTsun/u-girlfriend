@@ -168,15 +168,15 @@ WITH ordered AS (
 windows AS (
   SELECT {qident(c_host) if c_host else "'unknown'"} AS host, {qident(c_model) if c_model else "'unknown'"} AS model,
          MIN({qident(c_time)}) AS started_at, MAX({qident(c_time)}) AS ended_at,
-         {f'MIN({qident(c_batt)})' if c_batt else 'NULL'} AS batt_start,
-         {f'MIN({qident(c_batt)})' if c_batt else 'NULL'} AS batt_min,
-         {f'MAX({qident(c_batt)})' if c_batt else 'NULL'} AS batt_max,
-         {(f"(array_agg({qident(c_batt)}) ORDER BY {qident(c_time)}) FILTER (WHERE rn = MAX(rn) OVER (PARTITION BY {qident(c_host) if c_host else \"'x'\"}, {qident(c_model) if c_model else \"'x'\"}, grp))[1]" if c_batt else 'NULL')} AS batt_end,
-         {f'MAX({qident(c_load)})' if c_load else 'NULL'} AS load_max,
-         {f'MIN({qident(c_in)})' if c_in else 'NULL'} AS in_min,
-         {f'MAX({qident(c_in)})' if c_in else 'NULL'} AS in_max,
-         {f'MIN({qident(c_out)})' if c_out else 'NULL'} AS out_min,
-         {f'MAX({qident(c_out)})' if c_out else 'NULL'} AS out_max,
+         {f'MIN({qident(c_batt)})' if c_batt else "NULL"} AS batt_start,
+         {f'MIN({qident(c_batt)})' if c_batt else "NULL"} AS batt_min,
+         {f'MAX({qident(c_batt)})' if c_batt else "NULL"} AS batt_max,
+         {(f"(array_agg({qident(c_batt)}) ORDER BY {qident(c_time)}) FILTER (WHERE rn = MAX(rn) OVER (PARTITION BY {qident(c_host) if c_host else \"'x'\"}, {qident(c_model) if c_model else \"'x'\"}, grp))[1]" if c_batt else "NULL")} AS batt_end,
+         {f'MAX({qident(c_load)})' if c_load else "NULL"} AS load_max,
+         {f'MIN({qident(c_in)})' if c_in else "NULL"} AS in_min,
+         {f'MAX({qident(c_in)})' if c_in else "NULL"} AS in_max,
+         {f'MIN({qident(c_out)})' if c_out else "NULL"} AS out_min,
+         {f'MAX({qident(c_out)})' if c_out else "NULL"} AS out_max,
          COUNT(*) AS cnt,
          ARRAY_AGG({qident(c_status)} ORDER BY {qident(c_time)}) AS statuses
   FROM ordered
@@ -203,13 +203,13 @@ ORDER BY started_at;
             tmap = {'OB':'on_batt','DISCHRG':'on_batt','ALARM':'alarm','LB':'low_batt'}
             etype = tmap.get(st0,'other')
             def ni(x):
-                try: return 'NULL' if x=='' or str(x).lower()=='null' else x
-                except: return 'NULL'
+                try: return "NULL" if x=='' or str(x).lower()=='null' else x
+                except: return "NULL"
             def ns(x):
                 try:
-                    if x=='' or str(x).lower()=='null': return 'NULL'
+                    if x=='' or str(x).lower()=='null': return "NULL"
                     return "'%s'" % str(x).replace("'","''")
-                except: return 'NULL'
+                except: return "NULL"
             details = json.dumps({'statuses': [s.strip('"') for s in statuses.strip('{}').split(',')] if statuses and statuses!='{}' else []}).replace("'","''")
             ins_ev.append(f"({ns(host)},{ns(model)},{ns(started_at)},{ns(ended_at)},'{etype}',{ni(batt_start)},{ni(batt_min)},{ni(batt_end)},{ni(load_max)},{ni(in_min)},{ni(in_max)},{ni(out_min)},{ni(out_max)},{ni(duration_sec)},'{details}'::jsonb)")
         for i in range(0, len(ins_ev), batch_size):
@@ -223,10 +223,10 @@ ORDER BY started_at;
 WITH base AS (
   SELECT {qident(c_host) if c_host else "'unknown'"} AS host, {qident(c_model) if c_model else "'unknown'"} AS model,
          date_trunc('hour', {qident(c_time)}) AS hour, {qident(c_status)} AS ups_status,
-         {qident(c_batt) if c_batt else 'NULL'} AS battery_charge_percent,
-         {qident(c_load) if c_load else 'NULL'} AS ups_load_percent,
-         {qident(c_in) if c_in else 'NULL'} AS input_voltage,
-         {qident(c_out) if c_out else 'NULL'} AS output_voltage,
+         {qident(c_batt) if c_batt else "NULL"} AS battery_charge_percent,
+         {qident(c_load) if c_load else "NULL"} AS ups_load_percent,
+         {qident(c_in) if c_in else "NULL"} AS input_voltage,
+         {qident(c_out) if c_out else "NULL"} AS output_voltage,
          {qident(c_time)} AS t
   FROM {S}.{ST}
   WHERE {qident(c_time)} < '{cutoff}' AND {qident(c_status)} IN ({norm_sql})
@@ -263,13 +263,13 @@ ORDER BY hour;
             if len(parts) < 14: continue
             host, model, hour, batt_min, batt_max, batt_last, load_min, load_max, in_min, in_max, out_min, out_max, cnt, status_mode = parts[:14]
             def ni(x):
-                try: return 'NULL' if x=='' or str(x).lower()=='null' else x
-                except: return 'NULL'
+                try: return "NULL" if x=='' or str(x).lower()=='null' else x
+                except: return "NULL"
             def ns(x):
                 try:
-                    if x=='' or str(x).lower()=='null': return 'NULL'
+                    if x=='' or str(x).lower()=='null': return "NULL"
                     return "'%s'" % str(x).replace("'","''")
-                except: return 'NULL'
+                except: return "NULL"
             ins_hr.append(f"({ns(host)},{ns(model)},{ns(hour)},{ni(batt_min)},{ni(batt_max)},{ni(batt_last)},{ni(load_min)},{ni(load_max)},{ni(in_min)},{ni(in_max)},{ni(out_min)},{ni(out_max)},{ni(cnt)},{ns(status_mode)})")
         for i in range(0, len(ins_hr), batch_size):
             batch = ins_hr[i:i+batch_size]
