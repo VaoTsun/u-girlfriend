@@ -176,7 +176,10 @@ def main():
     batt_start_e = f'MIN({qident(c_batt)})' if c_batt else 'NULL'
     batt_min_e = batt_start_e
     batt_max_e = f'MAX({qident(c_batt)})' if c_batt else 'NULL'
-    batt_end_e = f'(array_agg({qident(c_batt)}) ORDER BY {qident(c_time)} DESC)[1]' if c_batt else 'NULL'
+    if c_batt:
+        batt_end_e = "(SELECT " + qident(c_batt) + " FROM ordered o2 WHERE o2.grp = ordered.grp AND o2." + qident(c_host if c_host else c_time) + " = ordered." + qident(c_host if c_host else c_time) + " AND o2." + qident(c_model if c_model else c_time) + " = ordered." + qident(c_model if c_model else c_time) + " ORDER BY o2." + qident(c_time) + " DESC LIMIT 1)"
+    else:
+        batt_end_e = 'NULL'
     load_max_e = f'MAX({qident(c_load)})' if c_load else 'NULL'
     in_min_e = f'MIN({qident(c_in)})' if c_in else 'NULL'
     in_max_e = f'MAX({qident(c_in)})' if c_in else 'NULL'
@@ -197,7 +200,7 @@ windows AS (
          {batt_start_e} AS batt_start,
          {batt_min_e} AS batt_min,
          {batt_max_e} AS batt_max,
-         {batt_end_e} AS batt_end,
+         ({batt_end_e}) AS batt_end,
          {load_max_e} AS load_max,
          {in_min_e} AS in_min,
          {in_max_e} AS in_max,
