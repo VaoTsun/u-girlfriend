@@ -326,7 +326,36 @@ ORDER BY hour;
         for i in range(0, len(ins_hr), batch_size):
             batch = ins_hr[i:i + batch_size]
             sql_ins = f"INSERT INTO {S}.{HT} (host,model,hour,batt_min,batt_max,batt_last,load_min,load_max,in_min,in_max,out_min,out_max,cnt,status_mode) VALUES {','.join(batch)} ON CONFLICT (host,model,hour) DO NOTHING;"
-            psql(env, sql_ins, psql_bin, dry=False)
+            # use temp file to avoid Argument list too long
+            import tempfile
+            fd, p = tempfile.mkstemp(suffix='.sql', prefix='ups_hr_')
+            os.close(fd)
+            with open(p, 'w', encoding='utf-8') as f:
+                f.write(sql_ins)
+            try:
+                db = env.get('PGDATABASE') or env.get('DB_NAME') or 'd'
+                user = env.get('PGUSER') or env.get('DB_USER') or os.environ.get('USER') or 'app'
+                password = env.get('PGPASSWORD') or env.get('DB_PASSWORD') or ''
+                pghost = env.get('PGHOST') or env.get('DB_HOST') or ''
+                pgport = env.get('PGPORT') or env.get('DB_PORT') or ''
+                cmd = [psql_bin]
+                if pghost and pghost not in ('127.0.0.1','localhost'):
+                    cmd += ['-h', pghost]
+                    if pgport:
+                        cmd += ['-p', str(pgport)]
+                cmd += ['-d', db, '-U', user, '-v', 'ON_ERROR_STOP=1', '-t', '-A', '-F', '\t', '-f', p]
+                run_env = os.environ.copy()
+                if password:
+                    run_env['PGPASSWORD'] = password
+                proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=run_env)
+                out, err = proc.communicate(timeout=1800)
+                if proc.returncode != 0:
+                    raise RuntimeError(f'psql failed: {err.decode("utf-8", errors="ignore")}')
+            finally:
+                try:
+                    os.unlink(p)
+                except Exception:
+                    pass
         print(f'[INFO] inserted/upserted {len(ins_hr)} hourly rows into {schema}.{hr}')
 
     if not dry:
