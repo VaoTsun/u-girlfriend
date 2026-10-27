@@ -85,8 +85,8 @@ def main():
     pgport = env.get('PGPORT') or env.get('DB_PORT') or ''
     pg_bin_dir = cfg.get('pg_bin_dir','')
     backup_dir = cfg.get('backup_dir','/home/vao/backups/db')
-    schemas = cfg.get('schemas',['r','dev'])
-    partial = cfg.get('partial_tables',[{"schema":"r","table":"vals","days":7,"time_col":"time"}])
+    schemas = cfg.get('schemas',['ar','dev'])
+    partial = cfg.get('partial_tables',[{"schema":"ar","table":"vals","days":7,"time_col":"time"}])
     keep_days = int(cfg.get('keep_days',14))
 
     ts = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
