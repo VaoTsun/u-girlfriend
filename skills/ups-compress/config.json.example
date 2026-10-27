@@ -1,0 +1,12 @@
+{
+  "keep_days": 14,
+  "batch_size": 50000,
+  "window_statuses": ["OB", "DISCHRG", "ALARM", "LB"],
+  "normal_statuses": ["OL", "OL CHRG"],
+  "psql_bin": "psql",
+  "env_path_prod": "/home/vao/u-barn/.env",
+  "schema": "dev",
+  "source_table": "upsd",
+  "events_table": "upsd_events",
+  "hourly_table": "upsd_hourly"
+}
