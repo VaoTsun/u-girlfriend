@@ -176,10 +176,7 @@ def main():
     batt_start_e = f'MIN({qident(c_batt)})' if c_batt else 'NULL'
     batt_min_e = batt_start_e
     batt_max_e = f'MAX({qident(c_batt)})' if c_batt else 'NULL'
-    if c_batt:
-        batt_end_e = f"(array_agg({qident(c_batt)} ORDER BY {qident(c_time)}) FILTER (WHERE rn = MAX(rn) OVER (PARTITION BY {phost}, {pmodel}, grp)))[1]"
-    else:
-        batt_end_e = 'NULL'
+    batt_end_e = f'(array_agg({qident(c_batt)}) ORDER BY {qident(c_time)} DESC)[1]' if c_batt else 'NULL'
     load_max_e = f'MAX({qident(c_load)})' if c_load else 'NULL'
     in_min_e = f'MIN({qident(c_in)})' if c_in else 'NULL'
     in_max_e = f'MAX({qident(c_in)})' if c_in else 'NULL'
