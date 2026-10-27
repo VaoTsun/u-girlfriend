@@ -82,9 +82,12 @@ def qident(s):
 def main():
     ap = argparse.ArgumentParser(description='Compress dev.upsd into events/hourly')
     ap.add_argument('--apply', action='store_true', help='Actually insert/delete (default: dry-run)')
+    ap.add_argument('--dry-run', action='store_true', help='Dry run (default)')
     ap.add_argument('--config', help='Path to config.json')
     args = ap.parse_args()
-    dry = not args.apply
+    dry = not args.apply if not args.dry_run else True
+    if args.apply and args.dry_run:
+        dry = True
 
     skill_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     env, cfg = get_db_env(skill_dir)
