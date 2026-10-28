@@ -5,7 +5,7 @@
   "schemas": ["ar", "dev"],
   "full_schemas": ["dev"],
   "partial_tables": [
-    {"schema": "ar", "table": "vals", "days": 7, "time_col": "time"}
+    {"schema": "ar", "table": "vals", "days": 7, "time_col": "ts"}
   ],
   "keep_days": 14,
   "compress": true
