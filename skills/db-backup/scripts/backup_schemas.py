@@ -86,7 +86,7 @@ def main():
     pg_bin_dir = cfg.get('pg_bin_dir','')
     backup_dir = cfg.get('backup_dir','/home/vao/backups/db')
     schemas = cfg.get('schemas',['ar','dev'])
-    partial = cfg.get('partial_tables',[{"schema":"ar","table":"vals","days":7,"time_col":"time"}])
+    partial = cfg.get('partial_tables',[{"schema":"ar","table":"vals","days":7,"time_col":"ts"}])
     keep_days = int(cfg.get('keep_days',14))
 
     ts = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
@@ -134,8 +134,7 @@ def main():
             pinfo = part_map[key]
             days = int(pinfo.get('days',7))
             tcol = pinfo.get('time_col','time')
-            cutoff = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d %H:%M:%S')
-            where = f"\"{tcol}\" >= '{cutoff}'"
+            where = f"\"{tcol}\" >= (now() - interval '{days} days')"
             cmd = base + ['-t', f'{s}.{t}', f'--where={where}', '-f', os.path.join(outdir, f'{s}.{t}.partial.{days}d.{ts}.dump')]
             print(f'[INFO] partial {s}.{t} last {days}d')
             rc,e,er = run(cmd, env_run, dry)
