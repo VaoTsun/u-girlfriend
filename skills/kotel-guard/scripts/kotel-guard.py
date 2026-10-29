@@ -89,7 +89,7 @@ def main():
 
     server = cfg.get("server") or "192.168.88.171:90"
     token = cfg.get("token") or ""
-    chat_id = cfg.get("chat_id") or ""
+    chat_id = cfg.get("group_id") or ""
     device = cfg.get("device") or "Отопление"
     column = cfg.get("column") or "cels"
     threshold = float(cfg.get("threshold_c") or 20)
