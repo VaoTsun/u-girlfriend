@@ -40,7 +40,7 @@ u-girlfriend склонирован на прод: `/home/vao/u-girlfriend` (д�
 | `30 7 * * *` | `skills/weather-forecast/scripts/weather_actual.py` — факт за вчера по ar.vals (src=23 Банановая) в dev.weather.actual |
 | `0 3 * * 0` | `skills/ups-compress/scripts/ups_compress.py` — сжатие исторических замеров dev.upsd в events/hourly (dry-run по умолчанию, для apply добавить --apply) |
 | `0 9 * *` | `prices/check_prices.py` — цены роботов-газонокосилок |
-| `0 23/6` | `u-barn/zte.5goff.night.py` — ночной off/on ZTE (venv) |
+| `0 23/6` | `u-barn/jobs/zte.5goff.night.py` — ночной off/on ZTE (venv) |
 
 **Не cron:** напоминания («напомни ... через ...») — внутри `ns.bot.js` на
 проде (процесс `crons.js`, таймер 30 с): входящие сообщения принимает только
@@ -53,6 +53,7 @@ Windows-задачи (OpenCode-alerts/prices, kotel-guard) удалены; ос�
 ## Правила (voltage)
 
 - Деплой: `git push` + `ssh ubarn171 "cd /home/vao/u-barn && git pull --ff-only"` + `ssh ubarn171 "touch /home/vao/u-barn/web.server.js"` (nodemon рестартит `web.server.js`, который сам поднимает `crons.js`). **Симлинк `/home/vao/voltage → u-barn` не удалять** — nodemon следит по старым путям, без него рестарты умрут (19.10.2026). Изменения только в документации - не деплоить.
+- Скрипты для cron — в `u-barn/jobs/` (pg/crontab-бэкапы, `zte.5goff.night.py`), пути в crontab ведут туда, а не в корень репо (30.10.2026).
 - Секреты только в `.env` (не в git); `vals.json`/`vals.js` не трогать.
 - Проверять результат чистыми запросами, не «сбросом кэша».
 - Кракозябры в PowerShell — кодировка консоли; сами файлы в UTF-8.

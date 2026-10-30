@@ -30,6 +30,12 @@
   запросами: 17 строк списка, 12 миниатюр 200 OK, `/sql?sql=things.attach.list`.
 - `knowledge/voltage-db.md` перегенерирован (`node tools/dbdoc.js`) — новая
   таблица `dev.things_attachment`.
+- `jobs/zte.5goff.night.py` — скрипт ночного 5G off/on (23:00/06:00) жил только
+  на проде в корне и был untracked; перенесён в `jobs/`, crontab vao переписан на
+  новый путь, копия в корне удалена. Проверено: `load_dotenv()` из `jobs/` находит
+  `/home/vao/u-barn/.env` (ROUTER_PASSWORD есть), `py_compile` ok, браузеры
+  playwright в `~/.cache/ms-playwright`. `find_ban.mjs` (разовый поиск «банан»
+  в `ar.src` из прошлой сессии) удалён — ни к чему не был подключён.
 
 **Грабли:**
 - `uploads/` в `.gitignore`, поэтому файлы, загруженные с дев-машины (Windows),
