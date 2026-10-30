@@ -4,6 +4,47 @@
 пишем **зачем** и какие грабли нашли. Заполняется скиллом `journal` по итогам
 работы (фраза «зафиксируй итоги»).
 
+## 2026-10-30 — Расходники: вложения (фото/файлы) и заметки одной строкой
+
+**Запрос:** «Заметки в things.html сделай в текст aria и scrollable, в строке
+только одна строка, потому что она очень широкая; заметки нужны только при
+нажатии или прокрутке». Попутно — закоммитить и выкатить незакоммиченный
+кусок про вложения (сессия 29.10, 11:20–11:30), который так и лежал в рабочей
+копии.
+
+**Что сделано:**
+- Коммит `ec46fea` (вложения): `dev.things_attachment` (миграция
+  `sql/things_attachment.create.sql`), файлы в `uploads/things/` (gitignore),
+  multer-загрузка `POST /things_upload`, отдача `GET /things_attachment/:i`
+  (`?download=1`), удаление `POST /things_attachment_del`;
+  `sql/things.list.all.sql` — счётчики photos/files и `photo_i`; страница:
+  таблица, карточка `?oneThing=`, галерея, список файлов, формы add/edit.
+- Коммит `8f9b741` (заметки): полный текст в `aria-label`/`title`, ячейка
+  30ch с горизонтальным скроллом и тонким скроллбаром, вся таблица в
+  `.table-wrap`, клик/Enter — модалка с полным текстом (`×`/фон/`Esc`).
+- Заодно поправлено в коде от 29.10: пул `pg.Pool` (max 4) на процесс вместо
+  нового `pg.Client` на каждый запрос; error-middleware перенесён **после**
+  catch-all (до этого ошибки самого catch-all не ловились).
+- Деплой: `git push` → `git pull` на проде → `npm install` (нужен multer,
+  до этого его на проде не было) → `touch web.server.js`. Проверено чистыми
+  запросами: 17 строк списка, 12 миниатюр 200 OK, `/sql?sql=things.attach.list`.
+- `knowledge/voltage-db.md` перегенерирован (`node tools/dbdoc.js`) — новая
+  таблица `dev.things_attachment`.
+
+**Грабли:**
+- `uploads/` в `.gitignore`, поэтому файлы, загруженные с дев-машины (Windows),
+  лежат только локально: на проде все `things_attachment` давали 404.
+  Скопировал 20 файлов (20 МБ) через `scp` в `/home/vao/u-barn/uploads/things`.
+  Вывод: вложения, загруженные не с прода, надо досылать руками.
+- Прод-процесс работает **от root** и при старте создал `uploads/` с владельцем
+  root — `vao` туда писать не может. Обошёл: `mv uploads uploads.root.old` (у
+  `vao` есть права на родителя), создал `uploads/things` от `vao`, файлы
+  скопировал. Пустая root-папка `uploads.root.old` осталась — удалять с sudo.
+- `npm install` на проде (node 18, npm 9) ругается `EBADENGINE` на
+  `node-cron@4`/`brace-expansion` — это было и раньше, на работу не влияет.
+
+---
+
 ## 2026-10-25 — Погода в БД: forecast+actual (src=23 Банановая)
 Зачем: скилл weather-forecast. weather_forecast.py (07:00) кладёт прогноз OWM в dev.weather.forecast, weather_actual.py (07:30) считает факт за вчера по ar.vals src=23 (Банановая) в dev.weather.actual. jsonb_set не трогает actual. Креды из /home/vao/u-barn/.env. dev.weather создана на проде. Временный сенсор для определения заморозков/заноса лавров.
 

@@ -20,7 +20,7 @@
 
 ### `ar.last_alert`
 
-строк ~1
+строк ~0
 
 | колонка | тип | null | по умолчанию |
 |---|---|---|---|
@@ -79,7 +79,7 @@
 
 ### `ar.vals`
 
-строк ~11 005 865
+строк ~11 038 387
 
 | колонка | тип | null | по умолчанию |
 |---|---|---|---|
@@ -113,7 +113,7 @@
 
 ### `dev.nasushchnoe`
 
-строк ~0
+строк ~71
 
 | колонка | тип | null | по умолчанию |
 |---|---|---|---|
@@ -123,6 +123,8 @@
 | `created_at` | timestamp with time zone | нет | now() |
 | `done` | boolean | нет | false |
 | `done_at` | timestamp with time zone | да |  |
+| `location` | text | да |  |
+| `prio` | integer | нет | 0 |
 
 ### `dev.nasushchnoe_dep`
 
@@ -132,6 +134,16 @@
 |---|---|---|---|
 | `task_i` | integer | нет |  |
 | `dep_i` | integer | нет |  |
+
+### `dev.nasushchnoe_location`
+
+строк ~0
+
+| колонка | тип | null | по умолчанию |
+|---|---|---|---|
+| `i` | integer | нет | nextval('dev.nasushchnoe_location_i_seq'::regclass) |
+| `name` | text | нет |  |
+| `sort` | integer | нет | 0 |
 
 ### `dev.organizer`
 
@@ -159,7 +171,7 @@
 
 ### `dev.solcast`
 
-строк ~14 140
+строк ~26 260
 
 | колонка | тип | null | по умолчанию |
 |---|---|---|---|
@@ -182,9 +194,24 @@
 | `model` | text | да |  |
 | `notes` | text | да |  |
 
+### `dev.things_attachment`
+
+строк ~0 · Вложения расходника: фотографии (kind=photo) и файлы (kind=file); файлы на диске в uploads/things
+
+| колонка | тип | null | по умолчанию |
+|---|---|---|---|
+| `i` | bigint | нет |  |
+| `thing_i` | integer | нет |  |
+| `kind` | text | нет |  |
+| `file_name` | text | нет |  |
+| `stored_name` | text | нет |  |
+| `mime_type` | text | нет |  |
+| `size_bytes` | bigint | нет |  |
+| `created_at` | timestamp with time zone | нет | now() |
+
 ### `dev.upsd`
 
-строк ~1 377 663
+строк ~1 295
 
 | колонка | тип | null | по умолчанию |
 |---|---|---|---|
@@ -215,6 +242,61 @@
 | `status_OB` | text | да |  |
 | `status_LB` | text | да |  |
 | `status_RB` | text | да |  |
+
+### `dev.upsd_events`
+
+строк ~0 · Событийный лог ИБП: окна работы от батареи (OB), тревоги (ALARM), низкий заряд (LB). Вместо 10-секундных замеров хранит факт отключения/тревоги с ключевыми параметрами.
+
+| колонка | тип | null | по умолчанию |
+|---|---|---|---|
+| `id` | bigint | нет | nextval('dev.upsd_events_id_seq'::regclass) |
+| `host` | text | да |  |
+| `model` | text | да |  |
+| `started_at` | timestamp without time zone | да |  |
+| `ended_at` | timestamp without time zone | да |  |
+| `type` | text | да |  |
+| `batt_start` | integer | да |  |
+| `batt_min` | integer | да |  |
+| `batt_end` | integer | да |  |
+| `load_max` | integer | да |  |
+| `in_min` | numeric | да |  |
+| `in_max` | numeric | да |  |
+| `out_min` | numeric | да |  |
+| `out_max` | numeric | да |  |
+| `duration_sec` | integer | да |  |
+| `details` | jsonb | да | '{}'::jsonb |
+
+### `dev.upsd_hourly`
+
+строк ~3 889 · Почасовые агрегаты dev.upsd для штатного режима (OL/OL CHRG). Хранит min/max/last по ключевым параметрам вместо 10-секундных замеров. Сжимает ~360x по сравнению с исходными данными.
+
+| колонка | тип | null | по умолчанию |
+|---|---|---|---|
+| `host` | text | нет |  |
+| `model` | text | нет |  |
+| `hour` | timestamp without time zone | нет |  |
+| `batt_min` | integer | да |  |
+| `batt_max` | integer | да |  |
+| `batt_last` | integer | да |  |
+| `load_min` | integer | да |  |
+| `load_max` | integer | да |  |
+| `in_min` | numeric | да |  |
+| `in_max` | numeric | да |  |
+| `out_min` | numeric | да |  |
+| `out_max` | numeric | да |  |
+| `cnt` | integer | да |  |
+| `status_mode` | text | да |  |
+
+### `dev.weather`
+
+строк ~0
+
+| колонка | тип | null | по умолчанию |
+|---|---|---|---|
+| `id` | bigint | нет |  |
+| `day` | date | да |  |
+| `data` | jsonb | нет | '{}'::jsonb |
+| `updated_at` | timestamp with time zone | нет | now() |
 
 ## Схема `public`
 
