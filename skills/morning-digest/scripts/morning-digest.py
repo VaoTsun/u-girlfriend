@@ -44,6 +44,11 @@ REPO_DIR = os.path.dirname(os.path.dirname(SKILL_DIR))   # .../u-girlfriend
 CONFIG_PATH = os.path.join(SKILL_DIR, "config.json")
 LOG_PATH = os.path.join(SKILL_DIR, "morning-digest.log")
 
+# Общая отправка в Telegram (повторы + очередь недоставленного) — tools/tg.py
+if REPO_DIR not in sys.path:
+    sys.path.insert(0, REPO_DIR)
+from tools import tg  # noqa: E402
+
 DEFAULTS = {
     "api": "http://192.168.88.171:90",
     "chat_id": 5002583838,          # личка владельца; группа — -5453305680
@@ -452,20 +457,12 @@ def build_message(nas_rows, org_rows, d, cfg, heating=None):
 # ---------------------------------------------------------------- Telegram
 
 def send_tg(token, chat_id, text):
-    req = urllib.request.Request(
-        "https://api.telegram.org/bot%s/sendMessage" % token,
-        data=urllib.parse.urlencode({
-            "chat_id": chat_id,
-            "parse_mode": "HTML",
-            "disable_web_page_preview": "true",
-            "text": text,
-        }).encode(),
-    )
-    with urllib.request.urlopen(req, timeout=30) as r:
-        resp = json.load(r)
-    if not resp.get("ok"):
-        raise RuntimeError(resp.get("description") or "Telegram: not ok")
-    return resp
+    """Пробует отправить; если сети нет — сообщение уйдёт из очереди позже
+    (tools/tg-flush.py). Исключение — только при отказе самого Telegram."""
+    r = tg.send(token, chat_id, text)
+    if not r.get("ok"):
+        raise RuntimeError(r.get("error") or "Telegram: not ok")
+    return r
 
 
 # ---------------------------------------------------------------- main
@@ -523,7 +520,7 @@ def main():
         return 0
 
     try:
-        send_tg(token, chat_id, text)
+        r = send_tg(token, chat_id, text)
     except Exception as e:
         log("Ошибка отправки в Telegram: %s" % e)
         return 5
@@ -532,8 +529,9 @@ def main():
     due_n = len([r for r in org_rows
                  if not r.get("complete_this_period")
                  and schedule_due(r.get("cron"), day, heating) is True])
-    log("Отправлено: насущное %d из %d, календарь %d задач(и)."
-        % (min(as_int(cfg.get("top_n"), 5), free_n), free_n, due_n))
+    log("%s: насущное %d из %d, календарь %d задач(и)."
+        % ("Отложено до связи" if r.get("queued") else "Отправлено",
+           min(as_int(cfg.get("top_n"), 5), free_n), free_n, due_n))
     return 0
 
 

@@ -28,6 +28,12 @@ API = "http://192.168.88.171:90/getdots"
 STATE_FILE = os.path.join(BASE, "state.json")
 LOG_FILE = os.path.join(BASE, "alerts.log")
 
+# Общая отправка в Telegram (повторы + очередь недоставленного) — tools/tg.py
+REPO_DIR = os.path.dirname(BASE)                        # .../u-girlfriend
+if REPO_DIR not in sys.path:
+    sys.path.insert(0, REPO_DIR)
+from tools import tg  # noqa: E402
+
 FALLBACK_CHAT = 5002583838  # личный диалог (страховка, пока группа не восстановлена)
 
 # mode: "last" — последний замер; "avg30" — среднее за 30 минут (окно 30 мин)
@@ -110,17 +116,12 @@ def get_token():
 
 
 def send_tg(token, text):
-    url = "https://api.telegram.org/bot%s/sendMessage" % token
     for chat in (get_chat(), FALLBACK_CHAT):
-        try:
-            data = urllib.parse.urlencode({"chat_id": chat, "text": text}).encode()
-            with urllib.request.urlopen(urllib.request.Request(url, data=data), timeout=20) as r:
-                resp = json.load(r)
-            if resp.get("ok"):
-                log("send_tg: чат %s — ok" % chat)
-                return resp
-        except Exception as e:
-            log("send_tg: чат %s — ошибка: %s" % (chat, e))
+        r = tg.send(token, chat, text)
+        if r.get("ok"):
+            log("send_tg: чат %s — %s" % (chat, "отложено до связи" if r.get("queued") else "ok"))
+            return {"ok": True}
+        log("send_tg: чат %s — ошибка: %s" % (chat, r.get("error")))
     return {"ok": False}
 
 

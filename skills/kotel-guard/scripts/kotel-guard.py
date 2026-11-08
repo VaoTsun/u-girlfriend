@@ -27,6 +27,12 @@ CONFIG_PATH = os.path.join(SKILL_DIR, "config.json")
 STATE_PATH = os.path.join(SKILL_DIR, "state.json")
 LOG_PATH = os.path.join(SKILL_DIR, "kotel-guard.log")
 
+# Общая отправка в Telegram (повторы + очередь недоставленного) — tools/tg.py
+REPO_DIR = os.path.dirname(os.path.dirname(SKILL_DIR))  # .../u-girlfriend
+if REPO_DIR not in sys.path:
+    sys.path.insert(0, REPO_DIR)
+from tools import tg  # noqa: E402
+
 
 def log(msg):
     line = "%s  %s" % (time.strftime("%Y-%m-%d %H:%M:%S"), msg)
@@ -194,20 +200,15 @@ def main():
         return 0
 
     # --- отправка в Telegram ---
-    try:
-        resp = http_json(
-            "https://api.telegram.org/bot%s/sendMessage" % token,
-            data=urllib.parse.urlencode({
-                "chat_id": chat_id, "parse_mode": "HTML",
-                "disable_web_page_preview": "true", "text": msg}).encode(),
-            timeout=30)
-    except Exception as e:
-        # не считаем топку отслеженной: при ошибке сети уведомление уйдёт в следующий цикл
-        log("Ошибка отправки в Telegram: %s" % e)
+    # Сети нет — сообщение уйдёт в очередь и будет дослано (tools/tg-flush.py),
+    # поэтому топку считаем отслеженной, чтобы не присылать одно и то же.
+    res = tg.send(token, chat_id, msg)
+    if not res.get("ok"):
+        log("Ошибка отправки в Telegram: %s" % res.get("error"))
         return 5
-    if not resp.get("ok"):
-        log("Ошибка отправки в Telegram: %s" % resp.get("description"))
-        return 5
+    if res.get("queued"):
+        log("Telegram недоступен — уведомление отложено в очередь."
+            " Топку считаю отслеженной.")
 
     state["armed"] = False
     state["last_ts"] = last["ts_str"]

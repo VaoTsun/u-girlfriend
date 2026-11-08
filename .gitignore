@@ -13,3 +13,7 @@ prices/reports/
 # Python
 __pycache__/
 *.pyc
+
+# Очередь Telegram и общий журнал фоновых задач (tools/tg.py, tools/tg-flush.py)
+state/
+logs/

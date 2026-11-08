@@ -33,6 +33,12 @@ CONFIG_PATH = os.path.join(SKILL_DIR, "config.json")
 STATE_PATH = os.path.join(SKILL_DIR, "state.json")
 LOG_PATH = os.path.join(SKILL_DIR, "well-guard.log")
 
+# Общая отправка в Telegram (повторы + очередь недоставленного) — tools/tg.py
+REPO_DIR = os.path.dirname(os.path.dirname(SKILL_DIR))  # .../u-girlfriend
+if REPO_DIR not in sys.path:
+    sys.path.insert(0, REPO_DIR)
+from tools import tg  # noqa: E402
+
 
 def log(msg):
     line = "%s  %s" % (time.strftime("%Y-%m-%d %H:%M:%S"), msg)
@@ -95,16 +101,12 @@ def psql(cfg, query, env_file_secrets):
 
 
 def send_tg(token, chat_id, text):
-    req = urllib.request.Request(
-        "https://api.telegram.org/bot%s/sendMessage" % token,
-        data=urllib.parse.urlencode({
-            "chat_id": chat_id, "parse_mode": "HTML",
-            "disable_web_page_preview": "true", "text": text}).encode(),
-    )
-    with urllib.request.urlopen(req, timeout=30) as r:
-        resp = json.load(r)
-    if not resp.get("ok"):
-        raise RuntimeError(resp.get("description"))
+    """Уходит сразу; если сети нет — tools/tg.py положит в очередь и дослать
+    позже (tools/tg-flush.py). Исключение — только если Telegram отказал навсегда."""
+    r = tg.send(token, chat_id, text)
+    if not r.get("ok"):
+        raise RuntimeError(r.get("error") or "Telegram отказал")
+    return r
 
 
 def fmt_when(dt):
