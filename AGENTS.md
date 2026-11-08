@@ -41,6 +41,16 @@ u-girlfriend склонирован на прод: `/home/vao/u-girlfriend` (д�
 | `0 3 * * 0` | `skills/ups-compress/scripts/ups_compress.py` — сжатие исторических замеров dev.upsd в events/hourly (dry-run по умолчанию, для apply добавить --apply) |
 | `0 9 * *` | `prices/check_prices.py` — цены роботов-газонокосилок |
 | `0 23/6` | `u-barn/jobs/zte.5goff.night.py` — ночной off/on ZTE (venv) |
+| `*/10` | `tools/tg-flush.py` — досылка очереди Telegram (`state/tg_outbox.jsonl`) |
+
+**Отправка в Telegram — только через `tools/tg.py`.** `send()` делает пару
+попыток, а если сети/DNS нет — кладёт сообщение в очередь и возвращает
+`ok=True, queued=True` (задача считает, что уведомила). Очередь разгребает
+`tools/tg-flush.py` по cron. Отказ самого Telegram (400/403) в очередь не
+ставится. Журнал — `logs/tg.log`. **Диагностика:** страница `/logs.html` на
+проде (`GET /logs`, `GET /logs?check=1` — DNS и api.telegram.org): там видны
+все логи задач, последняя строка, возраст, ошибки. Не спрашивать «что
+случилось» — сначала смотреть эту страницу.
 
 **Не cron:** напоминания («напомни ... через ...») — внутри `ns.bot.js` на
 проде (процесс `crons.js`, таймер 30 с): входящие сообщения принимает только
