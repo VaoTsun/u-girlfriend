@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Poll SMS from the ZTE router web UI and forward new messages to Telegram.
+"""Forward unread individual ZTE SMS to Telegram and mark them read.
 
-Production-only cron job. The first successful run stores a baseline and does
-not forward the messages already present in the router. Subsequent runs watch
-both Device SMS and SIM SMS. State contains fingerprints only, not message
-bodies; Telegram delivery goes through tools/tg.py and its offline queue.
+Production-only cron job. It uses the router's message API rather than its
+conversation-grouped table. Local state stores message IDs only; Telegram
+history keeps the message text. Delivery uses tools/tg.py's offline queue.
 """
 
+import argparse
 import fcntl
-import hashlib
 import html
 import json
 import os
@@ -69,16 +68,20 @@ def read_state():
     try:
         with STATE_FILE.open(encoding="utf-8") as f:
             data = json.load(f)
-        if data.get("version") != 1 or not isinstance(data.get("seen"), list):
+        if data.get("version") == 1 and isinstance(data.get("seen"), list):
+            # Previous version tracked grouped conversation previews, not SMS IDs.
+            # Drop that baseline so the explicitly requested unread backlog is sent.
+            return {"version": 2, "seen_ids": [], "migrated": True}
+        if data.get("version") != 2 or not isinstance(data.get("seen_ids"), list):
             raise ValueError("неподдерживаемый формат state")
         return data
     except FileNotFoundError:
         return None
 
 
-def write_state(seen):
+def write_state(seen_ids):
     STATE_DIR.mkdir(parents=True, exist_ok=True)
-    payload = {"version": 1, "seen": list(seen)[-MAX_SEEN:]}
+    payload = {"version": 2, "seen_ids": list(seen_ids)[-MAX_SEEN:]}
     fd, tmp_path = tempfile.mkstemp(prefix="router_sms_", suffix=".tmp", dir=STATE_DIR)
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
@@ -92,13 +95,6 @@ def write_state(seen):
             os.unlink(tmp_path)
         except FileNotFoundError:
             pass
-
-
-def fingerprint(sender, sent_at, body):
-    # Device SMS and SIM SMS may show the same message: use its content and
-    # timestamp rather than a per-list row id, which is actually a conversation id.
-    source = "\x1f".join((sender.strip(), sent_at.strip(), body.strip()))
-    return hashlib.sha256(source.encode("utf-8", "replace")).hexdigest()
 
 
 def router_sms(password):
@@ -121,55 +117,82 @@ def router_sms(password):
                 page.goto(ROUTER_URL, wait_until="domcontentloaded", timeout=20000)
                 page.wait_for_timeout(2000)
 
-            category = page.locator("select.form-control").first
-            if not category.count():
-                raise RuntimeError("не найдены разделы SMS; вход на роутер мог не выполниться")
+            try:
+                page.wait_for_function("typeof window.require === 'function'", timeout=10000)
+            except PlaywrightTimeoutError as e:
+                raise RuntimeError("AMD loader на странице роутера не загрузился") from e
 
-            for storage, expected_body_class in (
-                ("device", "page_sms_smslist"),
-                ("sim", "page_sms_sim_messages"),
-            ):
-                if storage == "sim":
-                    category.select_option(storage)
-                try:
-                    page.wait_for_function(
-                        "expected => document.body.classList.contains(expected)",
-                        arg=expected_body_class,
-                        timeout=10000,
-                    )
-                except PlaywrightTimeoutError as e:
-                    raise RuntimeError("раздел SMS не загрузился: " + storage) from e
-                page.wait_for_timeout(1500)
-
-                table = page.locator("table.table")
-                if not table.count():
-                    raise RuntimeError("таблица SMS не найдена: " + storage)
-                headers = " ".join(table.locator("th").all_text_contents()).lower()
-                if not all(word in headers for word in ("number", "content", "time")):
-                    raise RuntimeError("неожиданные заголовки таблицы SMS: " + storage)
-
-                rows = page.locator("tr.smslist-item")
-                for i in range(rows.count()):
-                    row = rows.nth(i)
-                    cells = row.locator("td")
-                    if cells.count() < 4:
+            stores = (("device", 1), ("sim", 0))
+            for storage, store_type in stores:
+                result = page.evaluate("""async ({storeType}) => {
+                  const api = await new Promise((resolve, reject) =>
+                    window.require(['service'], resolve, reject));
+                  const all = [];
+                  for (let pageNo = 0; pageNo < 10; pageNo++) {
+                    const response = await new Promise((resolve, reject) =>
+                      api.getSMSMessages({
+                        page: pageNo,
+                        smsCount: 500,
+                        nMessageStoreType: storeType,
+                        tags: 10,
+                        orderBy: 'order by id desc'
+                      }, resolve, reject));
+                    const batch = response && Array.isArray(response.messages)
+                      ? response.messages : [];
+                    all.push(...batch);
+                    if (batch.length < 500) return all;
+                  }
+                  throw new Error('SMS list exceeds safety limit of 5000 messages');
+                }""", {"storeType": store_type})
+                for item in result:
+                    if not item.get("isNew"):
                         continue
-                    sender = cells.nth(1).inner_text().strip()
-                    content_cell = cells.nth(2)
-                    body = (content_cell.get_attribute("title") or content_cell.inner_text()).strip()
-                    sent_at = cells.nth(3).inner_text().strip()
-                    if not sender or not sent_at or not body:
+                    message_id = str(item.get("id", "")).strip()
+                    sender = str(item.get("number", "")).strip()
+                    body = str(item.get("content", "")).strip()
+                    sent_at = str(item.get("time", item.get("timeOri", ""))).strip()
+                    if not message_id or not sender or not body:
                         continue
                     messages.append({
                         "storage": storage,
+                        "id": message_id,
+                        "key": storage + ":" + message_id,
                         "sender": sender,
                         "sent_at": sent_at,
                         "body": body,
-                        "fingerprint": fingerprint(sender, sent_at, body),
                     })
         finally:
             browser.close()
-    return messages
+    return sorted(messages, key=lambda m: (m["storage"], int(m["id"]) if m["id"].isdigit() else 0))
+
+
+def mark_device_read(password, ids):
+    """Use the router UI service API to mark sent device SMS as read."""
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page()
+        try:
+            page.goto(ROUTER_URL, wait_until="domcontentloaded", timeout=20000)
+            page.wait_for_timeout(1000)
+            password_input = page.locator("input[type='password'], #txtPwd, #password").first
+            if password_input.count() and password_input.is_visible():
+                password_input.fill(password)
+                login = page.locator("#btnLogin, #btn_login, .login_btn, input[type='button']").first
+                if not login.count():
+                    raise RuntimeError("на странице роутера не найдена кнопка входа")
+                login.click()
+                page.wait_for_timeout(1800)
+                page.goto(ROUTER_URL, wait_until="domcontentloaded", timeout=20000)
+                page.wait_for_timeout(1800)
+
+            return page.evaluate("""async ({ids}) => {
+              const api = await new Promise((resolve, reject) =>
+                window.require(['service'], resolve, reject));
+              return await new Promise((resolve, reject) =>
+                api.setSmsRead({ids}, resolve, reject));
+            }""", {"ids": [str(i) for i in ids]})
+        finally:
+            browser.close()
 
 
 def telegram_text(message):
@@ -188,7 +211,7 @@ def telegram_text(message):
     return prefix + html.escape(body)
 
 
-def run():
+def run(dry_run=False):
     STATE_DIR.mkdir(parents=True, exist_ok=True)
     with LOCK_FILE.open("a+") as lock:
         try:
@@ -200,40 +223,55 @@ def run():
         password, token, chat_id = credentials()
         messages = router_sms(password)
         state = read_state()
-        fingerprints = list(dict.fromkeys(m["fingerprint"] for m in messages))
-
         if state is None:
-            write_state(fingerprints)
-            log("начальный список сохранён без отправки старых SMS: %d сообщений" % len(messages))
+            state = {"version": 2, "seen_ids": []}
+        seen_ids = list(state["seen_ids"])
+        seen_set = set(seen_ids)
+        fresh = [message for message in messages if message["key"] not in seen_set]
+
+        if dry_run:
+            log("DRY RUN: непрочитано %d; к отправке %d (без отправки/изменения статуса)" %
+                (len(messages), len(fresh)))
             return 0
 
-        seen = list(state["seen"])
-        seen_set = set(seen)
-        fresh = []
-        for message in messages:
-            fp = message["fingerprint"]
-            if fp not in seen_set:
-                fresh.append(message)
-                seen_set.add(fp)
-
-        sent = 0
         failed = 0
+        device_ids_to_mark = []
         for message in fresh:
             result = tg.send(token, chat_id, telegram_text(message), parse_mode="HTML")
             if result.get("ok"):
-                seen.append(message["fingerprint"])
-                seen = seen[-MAX_SEEN:]
-                seen_set = set(seen)
-                write_state(seen)
-                sent += 1
-                log("SMS обработано (%s), Telegram %s" % (
-                    message["storage"], "в очереди" if result.get("queued") else "доставлено"))
+                seen_ids.append(message["key"])
+                seen_ids = seen_ids[-MAX_SEEN:]
+                seen_set = set(seen_ids)
+                write_state(seen_ids)
+                if message["storage"] == "device":
+                    device_ids_to_mark.append(message["id"])
+                log("SMS #%s (%s): Telegram %s" % (
+                    message["id"], message["storage"],
+                    "в очереди" if result.get("queued") else "доставлено"))
             else:
                 failed += 1
-                log("Telegram отказал; SMS оставлено для повтора: " + str(result.get("error", "ошибка")))
+                log("Telegram отказал; SMS #%s оставлено непрочитанным для повтора: %s" %
+                    (message["id"], str(result.get("error", "ошибка"))))
+
+        # Read marking is done only after Telegram accepted/queued the SMS.
+        # Already-sent IDs are marked again on the next poll if this API call fails.
+        for message in messages:
+            if message["storage"] == "device" and message["key"] in seen_set:
+                device_ids_to_mark.append(message["id"])
+        device_ids_to_mark = list(dict.fromkeys(device_ids_to_mark))
+        if device_ids_to_mark:
+            try:
+                result = mark_device_read(password, device_ids_to_mark)
+                if not result.get("result"):
+                    raise RuntimeError("роутер не подтвердил setSmsRead")
+                log("отмечено прочитанными Device SMS: %d" % len(device_ids_to_mark))
+            except Exception as exc:
+                failed += 1
+                log("не удалось отметить SMS прочитанными; повторю при следующей проверке: " +
+                    str(exc))
 
         if not fresh:
-            log("новых SMS нет; в просмотренных разделах %d сообщений" % len(messages))
+            log("непрочитанных SMS нет")
         if failed:
             return 1
         return 0
@@ -241,7 +279,11 @@ def run():
 
 if __name__ == "__main__":
     try:
-        raise SystemExit(run())
+        parser = argparse.ArgumentParser()
+        parser.add_argument("--dry-run", action="store_true",
+                            help="посчитать непрочитанные SMS без отправки и без отметки прочитанными")
+        args = parser.parse_args()
+        raise SystemExit(run(dry_run=args.dry_run))
     except Exception as exc:
         log("ошибка опроса: %s: %s" % (type(exc).__name__, exc))
         raise SystemExit(1)
