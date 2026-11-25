@@ -134,7 +134,7 @@ def router_sms(password):
                 try:
                     page.wait_for_function(
                         "expected => document.body.classList.contains(expected)",
-                        expected_body_class,
+                        arg=expected_body_class,
                         timeout=10000,
                     )
                 except PlaywrightTimeoutError as e:
