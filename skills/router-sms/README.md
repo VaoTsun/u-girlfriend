@@ -1,6 +1,6 @@
 # SMS роутера ZTE → Telegram
 
-`scripts/router_sms.py` раз в две минуты читает списки **Device SMS** и
+`scripts/router_sms.py` один раз в день в полночь по времени production-сервера читает списки **Device SMS** и
 **SIM SMS** на `http://192.168.8.3/index.html#sms`. Новое сообщение отправляется
 в тот же Telegram-чат, что и production-бот. Отправка использует общий
 `tools/tg.py` с очередью на случай временного отсутствия сети.
