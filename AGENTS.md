@@ -35,6 +35,7 @@ u-girlfriend склонирован на прод: `/home/vao/u-girlfriend` (д�
 | `*/5` | `alerts/check_alerts.py` — отопление < 40 °C, qoltec < 52.5 В → Telegram |
 | `*/30` | `skills/kotel-guard/scripts/kotel-guard.py` — котёл разожжён → Telegram |
 | `*/30` | `skills/well-guard/scripts/well-guard.py` — колодец: не включался ≥ 6.5 ч / работает ≥ 30 мин / мёртв датчик → Telegram |
+| `*/2` | `skills/router-sms/scripts/router_sms.py` — новые SMS ZTE (Device + SIM) → Telegram; baseline без старых SMS, состояние — только отпечатки |
 | `30 7 * *` | `skills/morning-digest/scripts/morning-digest.py` — план на день: насущное + календарь → Telegram |
 | `0 7 * * *` | `skills/weather-forecast/scripts/weather_forecast.py` — прогноз погоды OWM в dev.weather.forecast |
 | `30 7 * * *` | `skills/weather-forecast/scripts/weather_actual.py` — факт за вчера по ar.vals (src=23 Банановая) в dev.weather.actual |
